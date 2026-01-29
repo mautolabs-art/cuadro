@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #10B981;
+  --background: #1a1a2e;
+  --card-bg: #16213e;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  background-color: var(--background);
+  color: white;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* PWA fullscreen styles */
+@media all and (display-mode: standalone) {
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--primary);
+  border-radius: 4px;
+}
+
+/* Checkbox custom style */
+.checkbox-custom {
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--primary);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.checkbox-custom:checked {
+  background: var(--primary);
+}
+
+.checkbox-custom:checked::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-weight: bold;
+}
+
+/* Money display animation */
+@keyframes pulse-money {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+
+.money-display {
+  animation: pulse-money 2s ease-in-out infinite;
+}
+
+/* Chat bubble styles */
+.chat-bubble-user {
+  background: var(--primary);
+  border-radius: 18px 18px 4px 18px;
+}
+
+.chat-bubble-ai {
+  background: var(--card-bg);
+  border-radius: 18px 18px 18px 4px;
+}
