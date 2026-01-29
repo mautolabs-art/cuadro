@@ -82,7 +82,6 @@ export default function AuthScreen({ onSuccess }: Props) {
                 size="large"
                 text="continue_with"
                 shape="rectangular"
-                locale="es"
                 width="320"
               />
             </div>
