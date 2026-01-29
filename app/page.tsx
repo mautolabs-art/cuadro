@@ -6,6 +6,7 @@ import LegalConsent from '@/components/auth/LegalConsent'
 import OnboardingFlow from '@/components/onboarding/OnboardingFlow'
 import Dashboard from '@/components/dashboard/Dashboard'
 import ChatInterface from '@/components/chat/ChatInterface'
+import { db } from '@/lib/supabase'
 
 interface FixedExpense {
   id: string
@@ -33,9 +34,17 @@ interface UserData {
   legalAccepted: boolean
 }
 
+interface GoogleUser {
+  id: string
+  email: string
+  name: string
+  picture: string
+}
+
 // Local storage keys
 const STORAGE_KEY = 'cuadro_user_data'
 const AUTH_KEY = 'cuadro_auth'
+const USER_KEY = 'cuadro_user'
 
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -43,56 +52,118 @@ export default function Home() {
   const [userData, setUserData] = useState<UserData | null>(null)
   const [currentView, setCurrentView] = useState<'auth' | 'legal' | 'onboarding' | 'dashboard' | 'chat'>('auth')
   const [isLoading, setIsLoading] = useState(true)
+  const [dbUserId, setDbUserId] = useState<string | null>(null)
+  const [googleUser, setGoogleUser] = useState<GoogleUser | null>(null)
 
-  // Load data from localStorage on mount
+  // Load data on mount
   useEffect(() => {
-    const authData = localStorage.getItem(AUTH_KEY)
-    const savedData = localStorage.getItem(STORAGE_KEY)
+    loadUserData()
+  }, [])
 
-    if (authData) {
-      const parsed = JSON.parse(authData)
-      setIsAuthenticated(parsed.authenticated || false)
-      setLegalAccepted(parsed.legalAccepted || false)
-    }
+  const loadUserData = async () => {
+    try {
+      const authData = localStorage.getItem(AUTH_KEY)
+      const savedUser = localStorage.getItem(USER_KEY)
 
-    if (savedData) {
-      const parsed = JSON.parse(savedData)
-      // Convert date strings back to Date objects
-      if (parsed.variableExpenses) {
-        parsed.variableExpenses = parsed.variableExpenses.map((exp: any) => ({
-          ...exp,
-          date: new Date(exp.date)
-        }))
+      if (authData) {
+        const parsed = JSON.parse(authData)
+        setIsAuthenticated(parsed.authenticated || false)
+        setLegalAccepted(parsed.legalAccepted || false)
       }
-      setUserData(parsed)
-    }
 
-    // Determine initial view
-    if (!authData || !JSON.parse(authData).authenticated) {
-      setCurrentView('auth')
-    } else if (!JSON.parse(authData).legalAccepted) {
-      setCurrentView('legal')
-    } else if (savedData && JSON.parse(savedData).onboardingComplete) {
-      setCurrentView('dashboard')
-    } else {
-      setCurrentView('onboarding')
-    }
+      if (savedUser) {
+        const user = JSON.parse(savedUser)
+        setGoogleUser(user)
 
-    setIsLoading(false)
+        // Load from Supabase if user exists
+        if (user.id) {
+          const dbUser = await db.getUserByGoogleId(user.id)
+
+          if (dbUser) {
+            setDbUserId(dbUser.id)
+
+            // Load fixed expenses
+            const fixedExpenses = await db.getFixedExpenses(dbUser.id)
+
+            // Load variable expenses (current month)
+            const now = new Date()
+            const startOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+            const variableExpenses = await db.getVariableExpenses(dbUser.id, startOfMonth)
+
+            const userData: UserData = {
+              income: dbUser.income,
+              fixedExpenses: fixedExpenses.map(exp => ({
+                id: exp.id,
+                name: exp.name,
+                amount: exp.amount,
+                icon: exp.icon || undefined,
+                paid: exp.paid
+              })),
+              variableExpenses: variableExpenses.map(exp => ({
+                id: exp.id,
+                description: exp.description,
+                amount: exp.amount,
+                category: exp.category,
+                date: new Date(exp.expense_date)
+              })),
+              savings: dbUser.savings,
+              onboardingComplete: dbUser.onboarding_complete,
+              legalAccepted: true
+            }
+
+            setUserData(userData)
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(userData))
+
+            // Determine view
+            if (dbUser.onboarding_complete) {
+              setCurrentView('dashboard')
+            } else {
+              setCurrentView('onboarding')
+            }
+          } else {
+            // User logged in but not in DB yet
+            if (authData && JSON.parse(authData).legalAccepted) {
+              setCurrentView('onboarding')
+            } else if (authData && JSON.parse(authData).authenticated) {
+              setCurrentView('legal')
+            }
+          }
+        }
+      }
+
+      // Default view if nothing loaded
+      if (!authData || !JSON.parse(authData).authenticated) {
+        setCurrentView('auth')
+      }
+
+    } catch (error) {
+      console.error('Error loading user data:', error)
+      // Fallback to localStorage
+      const savedData = localStorage.getItem(STORAGE_KEY)
+      if (savedData) {
+        const parsed = JSON.parse(savedData)
+        if (parsed.variableExpenses) {
+          parsed.variableExpenses = parsed.variableExpenses.map((exp: any) => ({
+            ...exp,
+            date: new Date(exp.date)
+          }))
+        }
+        setUserData(parsed)
+        if (parsed.onboardingComplete) {
+          setCurrentView('dashboard')
+        }
+      }
+    } finally {
+      setIsLoading(false)
+    }
 
     // Register service worker
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js')
-        .then((registration) => {
-          console.log('SW registered:', registration)
-        })
-        .catch((error) => {
-          console.log('SW registration failed:', error)
-        })
+      navigator.serviceWorker.register('/sw.js').catch(console.error)
     }
-  }, [])
+  }
 
-  // Save data to localStorage whenever it changes
+  // Save to localStorage when userData changes
   useEffect(() => {
     if (userData) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(userData))
@@ -108,23 +179,86 @@ export default function Home() {
   }, [isAuthenticated, legalAccepted])
 
   // Handle successful authentication
-  const handleAuthSuccess = () => {
+  const handleAuthSuccess = async () => {
     setIsAuthenticated(true)
+
+    // Get Google user from localStorage (set by AuthScreen)
+    const savedUser = localStorage.getItem(USER_KEY)
+    if (savedUser) {
+      const user = JSON.parse(savedUser)
+      setGoogleUser(user)
+
+      // Check if user exists in Supabase
+      let dbUser = await db.getUserByGoogleId(user.id)
+
+      if (dbUser) {
+        setDbUserId(dbUser.id)
+
+        if (dbUser.onboarding_complete) {
+          // Load existing data
+          const fixedExpenses = await db.getFixedExpenses(dbUser.id)
+          const now = new Date()
+          const startOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+          const variableExpenses = await db.getVariableExpenses(dbUser.id, startOfMonth)
+
+          setUserData({
+            income: dbUser.income,
+            fixedExpenses: fixedExpenses.map(exp => ({
+              id: exp.id,
+              name: exp.name,
+              amount: exp.amount,
+              icon: exp.icon || undefined,
+              paid: exp.paid
+            })),
+            variableExpenses: variableExpenses.map(exp => ({
+              id: exp.id,
+              description: exp.description,
+              amount: exp.amount,
+              category: exp.category,
+              date: new Date(exp.expense_date)
+            })),
+            savings: dbUser.savings,
+            onboardingComplete: true,
+            legalAccepted: true
+          })
+          setLegalAccepted(true)
+          setCurrentView('dashboard')
+          return
+        }
+      }
+    }
+
     setCurrentView('legal')
   }
 
   // Handle legal consent
-  const handleLegalAccept = () => {
+  const handleLegalAccept = async () => {
     setLegalAccepted(true)
+
+    // Create user in Supabase if doesn't exist
+    if (googleUser && !dbUserId) {
+      const newUser = await db.createUser({
+        google_id: googleUser.id,
+        email: googleUser.email,
+        name: googleUser.name,
+        picture: googleUser.picture
+      })
+
+      if (newUser) {
+        setDbUserId(newUser.id)
+      }
+    }
+
     setCurrentView('onboarding')
   }
 
   // Handle onboarding completion
-  const handleOnboardingComplete = (data: { income: number; fixedExpenses: any[]; savings?: number }) => {
+  const handleOnboardingComplete = async (data: { income: number; fixedExpenses: any[]; savings?: number }) => {
     const newUserData: UserData = {
       income: data.income,
       fixedExpenses: data.fixedExpenses.map(exp => ({
         ...exp,
+        id: exp.id || Date.now().toString() + Math.random(),
         paid: false
       })),
       variableExpenses: [],
@@ -132,13 +266,53 @@ export default function Home() {
       onboardingComplete: true,
       legalAccepted: true
     }
+
+    // Save to Supabase
+    if (dbUserId) {
+      // Update user with income and savings
+      await db.updateUser(dbUserId, {
+        income: data.income,
+        savings: data.savings || 0,
+        onboarding_complete: true
+      })
+
+      // Delete old fixed expenses and create new ones
+      await db.deleteAllFixedExpenses(dbUserId)
+
+      const fixedExpensesToCreate = data.fixedExpenses.map(exp => ({
+        user_id: dbUserId,
+        name: exp.name,
+        amount: exp.amount,
+        icon: exp.icon
+      }))
+
+      const createdExpenses = await db.createManyFixedExpenses(fixedExpensesToCreate)
+
+      // Update IDs with Supabase IDs
+      newUserData.fixedExpenses = createdExpenses.map(exp => ({
+        id: exp.id,
+        name: exp.name,
+        amount: exp.amount,
+        icon: exp.icon || undefined,
+        paid: exp.paid
+      }))
+    }
+
     setUserData(newUserData)
     setCurrentView('dashboard')
   }
 
   // Toggle fixed expense paid status
-  const handleTogglePaid = (id: string) => {
+  const handleTogglePaid = async (id: string) => {
     if (!userData) return
+
+    const expense = userData.fixedExpenses.find(exp => exp.id === id)
+    if (!expense) return
+
+    // Update in Supabase
+    if (dbUserId) {
+      await db.updateFixedExpense(id, { paid: !expense.paid })
+    }
 
     setUserData(prev => {
       if (!prev) return prev
@@ -151,7 +325,7 @@ export default function Home() {
     })
   }
 
-  // Check if expense is a duplicate (same description and amount today)
+  // Check if expense is a duplicate
   const checkForDuplicate = (description: string, amount: number): VariableExpense | null => {
     if (!userData?.variableExpenses) return null
 
@@ -171,20 +345,53 @@ export default function Home() {
     }) || null
   }
 
-  // Delete an expense by search term
-  const deleteExpense = (searchTerm: string): { deleted: VariableExpense | null, message: string } => {
+  // Add variable expense (with Supabase sync)
+  const addVariableExpense = async (description: string, amount: number, category: string): Promise<VariableExpense> => {
+    let newExpense: VariableExpense = {
+      id: Date.now().toString(),
+      description,
+      amount,
+      category,
+      date: new Date()
+    }
+
+    // Save to Supabase
+    if (dbUserId) {
+      const dbExpense = await db.createVariableExpense({
+        user_id: dbUserId,
+        description,
+        amount,
+        category
+      })
+
+      if (dbExpense) {
+        newExpense.id = dbExpense.id
+      }
+    }
+
+    setUserData(prev => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        variableExpenses: [...prev.variableExpenses, newExpense]
+      }
+    })
+
+    return newExpense
+  }
+
+  // Delete expense (with Supabase sync)
+  const deleteExpense = async (searchTerm: string): Promise<{ deleted: VariableExpense | null, message: string }> => {
     if (!userData?.variableExpenses || userData.variableExpenses.length === 0) {
       return { deleted: null, message: 'No tienes gastos para borrar.' }
     }
 
-    const expenses = [...userData.variableExpenses].reverse() // Most recent first
+    const expenses = [...userData.variableExpenses].reverse()
     let expenseToDelete: VariableExpense | null = null
 
-    // If "ultimo" or empty search, delete the most recent
     if (searchTerm === 'ultimo' || searchTerm === 'último' || !searchTerm) {
       expenseToDelete = expenses[0]
     } else {
-      // Try to find by description or amount
       const searchLower = searchTerm.toLowerCase()
       const searchNum = parseInt(searchTerm.replace(/\D/g, ''))
 
@@ -196,6 +403,11 @@ export default function Home() {
     }
 
     if (expenseToDelete) {
+      // Delete from Supabase
+      if (dbUserId) {
+        await db.deleteVariableExpense(expenseToDelete.id)
+      }
+
       setUserData(prev => {
         if (!prev) return prev
         return {
@@ -203,6 +415,7 @@ export default function Home() {
           variableExpenses: prev.variableExpenses.filter(exp => exp.id !== expenseToDelete!.id)
         }
       })
+
       return {
         deleted: expenseToDelete,
         message: `🗑️ Listo, borré "${expenseToDelete.description}" por $${expenseToDelete.amount.toLocaleString('es-CO')}`
@@ -212,10 +425,9 @@ export default function Home() {
     return { deleted: null, message: `No encontré ningún gasto con "${searchTerm}". ¿Cuál querías borrar?` }
   }
 
-  // Handle chat message with OpenAI parsing
+  // Handle chat message
   const handleSendMessage = async (message: string): Promise<string> => {
     try {
-      // Get recent expenses to send to API
       const recentExpenses = userData?.variableExpenses
         ?.slice(-10)
         .reverse()
@@ -224,21 +436,17 @@ export default function Home() {
           amount: exp.amount
         })) || []
 
-      // Call OpenAI API to parse the message
       const response = await fetch('/api/parse-expense', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message,
-          recentExpenses
-        })
+        body: JSON.stringify({ message, recentExpenses })
       })
 
       const parsed = await response.json()
 
       // Handle DELETE
       if (parsed.tipo === 'borrar') {
-        const result = deleteExpense(parsed.buscar || 'ultimo')
+        const result = await deleteExpense(parsed.buscar || 'ultimo')
         if (result.deleted) {
           const available = getAvailableMoney() + result.deleted.amount
           return `${result.message}\n\n📊 Te quedan $${available.toLocaleString('es-CO')} pa'l mes.`
@@ -250,54 +458,18 @@ export default function Home() {
       if (parsed.tipo === 'gasto' && parsed.monto) {
         const description = parsed.categoria || 'Gasto'
         const amount = parsed.monto
+        const category = categorizeExpense(description)
 
-        // Check for duplicate
         const duplicate = checkForDuplicate(description, amount)
-        if (duplicate) {
-          // Still add it but warn the user
-          const newExpense: VariableExpense = {
-            id: Date.now().toString(),
-            description,
-            amount,
-            category: categorizeExpense(description),
-            date: new Date()
-          }
-
-          setUserData(prev => {
-            if (!prev) return prev
-            return {
-              ...prev,
-              variableExpenses: [...prev.variableExpenses, newExpense]
-            }
-          })
-
-          const totalFixed = userData?.fixedExpenses.reduce((sum, exp) => sum + exp.amount, 0) || 0
-          const totalVariable = (userData?.variableExpenses.reduce((sum, exp) => sum + exp.amount, 0) || 0) + amount
-          const available = (userData?.income || 0) - totalFixed - totalVariable
-
-          return `✅ Listo, ${description} por $${amount.toLocaleString('es-CO')}\n\n⚠️ Ojo: Ya tenías un gasto parecido hoy ("${duplicate.description}" por $${duplicate.amount.toLocaleString('es-CO')}). Si fue error, escribe "borrar último".\n\n📊 Te quedan $${available.toLocaleString('es-CO')} pa'l mes.`
-        }
-
-        // Add variable expense normally
-        const newExpense: VariableExpense = {
-          id: Date.now().toString(),
-          description,
-          amount,
-          category: categorizeExpense(description),
-          date: new Date()
-        }
-
-        setUserData(prev => {
-          if (!prev) return prev
-          return {
-            ...prev,
-            variableExpenses: [...prev.variableExpenses, newExpense]
-          }
-        })
+        await addVariableExpense(description, amount, category)
 
         const totalFixed = userData?.fixedExpenses.reduce((sum, exp) => sum + exp.amount, 0) || 0
         const totalVariable = (userData?.variableExpenses.reduce((sum, exp) => sum + exp.amount, 0) || 0) + amount
         const available = (userData?.income || 0) - totalFixed - totalVariable
+
+        if (duplicate) {
+          return `✅ Listo, ${description} por $${amount.toLocaleString('es-CO')}\n\n⚠️ Ojo: Ya tenías un gasto parecido hoy ("${duplicate.description}" por $${duplicate.amount.toLocaleString('es-CO')}). Si fue error, escribe "borrar último".\n\n📊 Te quedan $${available.toLocaleString('es-CO')} pa'l mes.`
+        }
 
         return `✅ Listo, ${description} por $${amount.toLocaleString('es-CO')}\n\n📊 Te quedan $${available.toLocaleString('es-CO')} pa'l mes.`
       }
@@ -323,7 +495,6 @@ export default function Home() {
         return `¡Qué más, parcero! 👋\n\nTe quedan $${available.toLocaleString('es-CO')} pa'l mes.\n\nCuéntame en qué gastaste, por ejemplo:\n• "Almuerzo 15000"\n• "10k en uber"\n• "Gasté 5 lucas en café"\n\n💡 Para borrar: "borrar último" o "quitar el uber"`
       }
 
-      // Default: no_entendido
       return 'Epa, no te entendí bien. 🤔\n\nEscríbeme algo como:\n• "Almuerzo 15000"\n• "10k uber"\n• "Gasté 5 lucas en café"\n• "Borrar último gasto"\n\nO pregúntame "¿cuánto llevo?"'
 
     } catch (error) {
@@ -332,8 +503,8 @@ export default function Home() {
     }
   }
 
-  // Fallback parser in case API fails
-  const fallbackParse = (message: string): string => {
+  // Fallback parser
+  const fallbackParse = async (message: string): Promise<string> => {
     const expensePattern = /(\d+(?:[.,]\d+)?)\s*(?:k|mil|lucas)?/i
     const match = message.match(expensePattern)
 
@@ -345,22 +516,9 @@ export default function Home() {
 
       const words = message.replace(/[\d.,]+\s*(k|mil|lucas)?/gi, '').trim()
       const description = words || 'Gasto'
+      const category = categorizeExpense(description)
 
-      const newExpense: VariableExpense = {
-        id: Date.now().toString(),
-        description,
-        amount: Math.round(amount),
-        category: categorizeExpense(description),
-        date: new Date()
-      }
-
-      setUserData(prev => {
-        if (!prev) return prev
-        return {
-          ...prev,
-          variableExpenses: [...prev.variableExpenses, newExpense]
-        }
-      })
+      await addVariableExpense(description, Math.round(amount), category)
 
       const available = getAvailableMoney() - Math.round(amount)
       return `✅ Listo, ${description} por $${Math.round(amount).toLocaleString('es-CO')}\n\n📊 Te quedan $${available.toLocaleString('es-CO')} pa'l mes.`
@@ -374,7 +532,7 @@ export default function Home() {
     return 'Epa, no te entendí. Escríbeme algo como "Almuerzo 15000" o pregúntame "¿cuánto llevo?"'
   }
 
-  // Simple expense categorization
+  // Categorize expense
   const categorizeExpense = (description: string): string => {
     const lower = description.toLowerCase()
     if (lower.includes('almuerzo') || lower.includes('comida') || lower.includes('restaurante') || lower.includes('café') || lower.includes('tintico') || lower.includes('desayuno') || lower.includes('cena')) {
