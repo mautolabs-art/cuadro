@@ -98,14 +98,14 @@ export default function AuthScreen({ onSuccess }: Props) {
 
         {/* Info */}
         <p className="text-gray-500 text-xs text-center mt-8">
-          Un clic y listo. Tus datos financieros se guardan en tu dispositivo.
+          Un clic y listo. Accede desde cualquier dispositivo.
         </p>
 
         {/* Privacy note */}
         <div className="mt-6 p-4 bg-background-card rounded-xl">
           <p className="text-gray-400 text-xs text-center">
-            🔒 Solo usamos tu email para identificarte.
-            Tu información financiera nunca sale de tu dispositivo.
+            🔒 Tus datos están protegidos con encriptación.
+            Nunca compartimos tu información con terceros.
           </p>
         </div>
       </div>

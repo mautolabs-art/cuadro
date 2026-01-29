@@ -69,18 +69,24 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-lg font-semibold text-white mb-3">4. Almacenamiento de Datos</h2>
             <p>
-              <strong>Almacenamiento Local:</strong> La mayoría de tus datos financieros
-              (ingresos, gastos) se almacenan únicamente en tu dispositivo usando localStorage.
+              <strong>Almacenamiento en la Nube:</strong> Tus datos financieros (ingresos, gastos fijos,
+              gastos variables) se almacenan de forma segura en servidores en la nube mediante Supabase,
+              un servicio de base de datos con sede en Estados Unidos y certificación SOC 2 Type II.
               Esto significa que:
             </p>
             <ul className="list-disc list-inside mt-2 space-y-1 ml-4">
-              <li>Tus datos no salen de tu dispositivo para estas funciones</li>
-              <li>Si borras los datos del navegador, perderás esta información</li>
-              <li>Los datos no se sincronizan entre dispositivos automáticamente</li>
+              <li>Puedes acceder a tus datos desde cualquier dispositivo</li>
+              <li>Tus datos están respaldados y protegidos con encriptación</li>
+              <li>Si borras los datos del navegador, no pierdes tu información</li>
+              <li>Solo tú puedes acceder a tus datos mediante tu cuenta de Google</li>
             </ul>
             <p className="mt-3">
-              <strong>Autenticación:</strong> Para Google Sign-In, procesamos temporalmente
-              tu información de perfil público (nombre, email, foto) para identificarte.
+              <strong>Almacenamiento Local:</strong> También mantenemos una copia local en tu
+              navegador (localStorage) para mejorar el rendimiento de la aplicación.
+            </p>
+            <p className="mt-3">
+              <strong>Autenticación:</strong> Para Google Sign-In, procesamos tu información
+              de perfil público (nombre, email, foto) para identificarte y asociarte con tus datos.
             </p>
           </section>
 
@@ -112,14 +118,20 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-lg font-semibold text-white mb-3">7. Compartición de Datos</h2>
             <p>
-              <strong>No vendemos tus datos.</strong> Solo compartimos información con:
+              <strong>No vendemos tus datos.</strong> Solo compartimos información con los siguientes
+              proveedores de servicios, necesarios para operar la aplicación:
             </p>
             <ul className="list-disc list-inside mt-2 space-y-1 ml-4">
               <li><strong>Google:</strong> Para autenticación (Google Sign-In)</li>
-              <li><strong>OpenAI:</strong> Para procesar texto de gastos (sin datos personales)</li>
+              <li><strong>Supabase:</strong> Para almacenamiento seguro de tus datos financieros (base de datos en la nube)</li>
+              <li><strong>OpenAI:</strong> Para procesar texto de gastos con IA (sin datos personales identificables)</li>
               <li><strong>Vercel:</strong> Hosting de la aplicación</li>
-              <li><strong>Autoridades:</strong> Solo si es requerido por ley</li>
+              <li><strong>Autoridades:</strong> Solo si es requerido por ley colombiana</li>
             </ul>
+            <p className="mt-3">
+              Todos nuestros proveedores cumplen con estándares de seguridad de la industria
+              y están obligados contractualmente a proteger tus datos.
+            </p>
           </section>
 
           <section>
@@ -146,8 +158,10 @@ export default function PrivacyPage() {
               Implementamos medidas de seguridad para proteger tu información:
             </p>
             <ul className="list-disc list-inside mt-2 space-y-1 ml-4">
-              <li>Conexiones cifradas (HTTPS)</li>
-              <li>Autenticación segura mediante OAuth 2.0</li>
+              <li>Conexiones cifradas (HTTPS/TLS)</li>
+              <li>Autenticación segura mediante OAuth 2.0 (Google)</li>
+              <li>Base de datos con encriptación en reposo y en tránsito</li>
+              <li>Aislamiento de datos por usuario (Row Level Security)</li>
               <li>Almacenamiento local en tu dispositivo</li>
               <li>No almacenamos contraseñas</li>
             </ul>
