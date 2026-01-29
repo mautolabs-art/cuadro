@@ -22,7 +22,7 @@ const consentItems: ConsentItem[] = [
     label: 'Términos y Condiciones',
     description: 'Acepto los términos de uso de Cuadro',
     icon: <FileText className="w-5 h-5" />,
-    link: '/terminos',
+    link: '/terms',
     linkText: 'Leer términos'
   },
   {
@@ -30,7 +30,7 @@ const consentItems: ConsentItem[] = [
     label: 'Política de Privacidad',
     description: 'Acepto el tratamiento de mis datos personales',
     icon: <Shield className="w-5 h-5" />,
-    link: '/privacidad',
+    link: '/privacy',
     linkText: 'Leer política'
   },
   {

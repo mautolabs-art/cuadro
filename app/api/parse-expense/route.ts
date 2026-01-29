@@ -2,53 +2,67 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
-const SYSTEM_PROMPT = `Eres un asistente financiero colombiano que ayuda a registrar gastos. Tu trabajo es extraer información de mensajes en lenguaje natural.
+const SYSTEM_PROMPT = `Eres un asistente financiero colombiano que ayuda a registrar y gestionar gastos. Tu trabajo es extraer información de mensajes en lenguaje natural.
 
-IMPORTANTE: Debes entender CUALQUIER formato de mensaje sobre gastos, sin importar el orden de las palabras.
+TIPOS DE ACCIONES:
+1. "gasto" - Usuario quiere registrar un gasto nuevo
+2. "borrar" - Usuario quiere eliminar un gasto (ej: "borrar último", "quitar el uber", "eliminar el de 15000")
+3. "consulta" - Usuario pregunta cuánto ha gastado
+4. "saludo" - Saludo simple
+5. "no_entendido" - No se pudo entender
 
-Ejemplos de mensajes que debes entender:
+EJEMPLOS DE GASTOS:
 - "Almuerzo 15000" → gasto
 - "15000 almuerzo" → gasto
 - "$10.000 en helados" → gasto
 - "helado $10k" → gasto
 - "gasté 10 lucas en comida" → gasto
-- "me comí un helado de diez mil" → gasto
 - "10k uber" → gasto
-- "transporte veinte mil" → gasto
-- "¿cuánto llevo?" → consulta
-- "¿cuánto he gastado?" → consulta
-- "resumen" → consulta
-- "hola" → saludo
+- "veinte mil en taxi" → gasto
 
-Conversiones de dinero colombiano:
+EJEMPLOS DE BORRAR:
+- "borrar último gasto" → borrar (buscar: "ultimo")
+- "quitar el de uber" → borrar (buscar: "uber")
+- "eliminar el almuerzo" → borrar (buscar: "almuerzo")
+- "borrar el de 15000" → borrar (buscar: "15000")
+- "me equivoqué, borra eso" → borrar (buscar: "ultimo")
+
+CONVERSIONES COLOMBIANAS:
 - "10k" = 10000
 - "10 lucas" = 10000
 - "10 mil" = 10000
 - "diez mil" = 10000
 - "$10.000" = 10000
-- "1M" = 1000000
-- "1 palo" = 1000000
+- "1M" o "1 palo" = 1000000
 
-Responde ÚNICAMENTE con JSON válido (sin markdown, sin \`\`\`):
+Responde ÚNICAMENTE JSON válido (sin markdown):
 {
-  "tipo": "gasto" | "consulta" | "saludo" | "no_entendido",
-  "categoria": "descripción corta del gasto (si es gasto)",
-  "monto": número sin puntos ni símbolos (si es gasto),
-  "mensaje_original": "el mensaje del usuario"
-}
-
-Si no puedes extraer el monto con certeza, usa tipo "no_entendido".`
+  "tipo": "gasto" | "borrar" | "consulta" | "saludo" | "no_entendido",
+  "categoria": "descripción corta (si gasto)",
+  "monto": número (si gasto),
+  "buscar": "término para buscar el gasto a borrar (si borrar)",
+  "mensaje_original": "mensaje del usuario"
+}`
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, availableMoney, totalSpent } = await request.json()
+    const { message, recentExpenses } = await request.json()
 
     if (!OPENAI_API_KEY) {
-      // Fallback to simple parsing if no API key
       return NextResponse.json({
         tipo: 'no_entendido',
         error: 'API key not configured'
       })
+    }
+
+    // Build context with recent expenses if available
+    let userMessage = message
+    if (recentExpenses && recentExpenses.length > 0) {
+      const expenseList = recentExpenses
+        .slice(0, 10)
+        .map((e: any, i: number) => `${i + 1}. ${e.description} - $${e.amount}`)
+        .join('\n')
+      userMessage = `Gastos recientes del usuario:\n${expenseList}\n\nMensaje: ${message}`
     }
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -61,7 +75,7 @@ export async function POST(request: NextRequest) {
         model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: message }
+          { role: 'user', content: userMessage }
         ],
         temperature: 0.1,
         max_tokens: 150
@@ -81,7 +95,6 @@ export async function POST(request: NextRequest) {
     const content = data.choices[0]?.message?.content
 
     try {
-      // Parse the JSON response from OpenAI
       const parsed = JSON.parse(content)
       return NextResponse.json(parsed)
     } catch (parseError) {

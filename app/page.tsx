@@ -151,28 +151,134 @@ export default function Home() {
     })
   }
 
+  // Check if expense is a duplicate (same description and amount today)
+  const checkForDuplicate = (description: string, amount: number): VariableExpense | null => {
+    if (!userData?.variableExpenses) return null
+
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    return userData.variableExpenses.find(exp => {
+      const expDate = new Date(exp.date)
+      expDate.setHours(0, 0, 0, 0)
+
+      const isSameDay = expDate.getTime() === today.getTime()
+      const isSimilar = exp.description.toLowerCase().includes(description.toLowerCase()) ||
+                        description.toLowerCase().includes(exp.description.toLowerCase())
+      const isSameAmount = exp.amount === amount
+
+      return isSameDay && (isSimilar || isSameAmount)
+    }) || null
+  }
+
+  // Delete an expense by search term
+  const deleteExpense = (searchTerm: string): { deleted: VariableExpense | null, message: string } => {
+    if (!userData?.variableExpenses || userData.variableExpenses.length === 0) {
+      return { deleted: null, message: 'No tienes gastos para borrar.' }
+    }
+
+    const expenses = [...userData.variableExpenses].reverse() // Most recent first
+    let expenseToDelete: VariableExpense | null = null
+
+    // If "ultimo" or empty search, delete the most recent
+    if (searchTerm === 'ultimo' || searchTerm === 'último' || !searchTerm) {
+      expenseToDelete = expenses[0]
+    } else {
+      // Try to find by description or amount
+      const searchLower = searchTerm.toLowerCase()
+      const searchNum = parseInt(searchTerm.replace(/\D/g, ''))
+
+      expenseToDelete = expenses.find(exp => {
+        const matchesDesc = exp.description.toLowerCase().includes(searchLower)
+        const matchesAmount = !isNaN(searchNum) && exp.amount === searchNum
+        return matchesDesc || matchesAmount
+      }) || null
+    }
+
+    if (expenseToDelete) {
+      setUserData(prev => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          variableExpenses: prev.variableExpenses.filter(exp => exp.id !== expenseToDelete!.id)
+        }
+      })
+      return {
+        deleted: expenseToDelete,
+        message: `🗑️ Listo, borré "${expenseToDelete.description}" por $${expenseToDelete.amount.toLocaleString('es-CO')}`
+      }
+    }
+
+    return { deleted: null, message: `No encontré ningún gasto con "${searchTerm}". ¿Cuál querías borrar?` }
+  }
+
   // Handle chat message with OpenAI parsing
   const handleSendMessage = async (message: string): Promise<string> => {
     try {
+      // Get recent expenses to send to API
+      const recentExpenses = userData?.variableExpenses
+        ?.slice(-10)
+        .reverse()
+        .map(exp => ({
+          description: exp.description,
+          amount: exp.amount
+        })) || []
+
       // Call OpenAI API to parse the message
       const response = await fetch('/api/parse-expense', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message,
-          availableMoney: getAvailableMoney(),
-          totalSpent: userData?.variableExpenses.reduce((sum, exp) => sum + exp.amount, 0) || 0
+          recentExpenses
         })
       })
 
       const parsed = await response.json()
 
-      // Handle different response types
+      // Handle DELETE
+      if (parsed.tipo === 'borrar') {
+        const result = deleteExpense(parsed.buscar || 'ultimo')
+        if (result.deleted) {
+          const available = getAvailableMoney() + result.deleted.amount
+          return `${result.message}\n\n📊 Te quedan $${available.toLocaleString('es-CO')} pa'l mes.`
+        }
+        return result.message
+      }
+
+      // Handle EXPENSE
       if (parsed.tipo === 'gasto' && parsed.monto) {
         const description = parsed.categoria || 'Gasto'
         const amount = parsed.monto
 
-        // Add variable expense
+        // Check for duplicate
+        const duplicate = checkForDuplicate(description, amount)
+        if (duplicate) {
+          // Still add it but warn the user
+          const newExpense: VariableExpense = {
+            id: Date.now().toString(),
+            description,
+            amount,
+            category: categorizeExpense(description),
+            date: new Date()
+          }
+
+          setUserData(prev => {
+            if (!prev) return prev
+            return {
+              ...prev,
+              variableExpenses: [...prev.variableExpenses, newExpense]
+            }
+          })
+
+          const totalFixed = userData?.fixedExpenses.reduce((sum, exp) => sum + exp.amount, 0) || 0
+          const totalVariable = (userData?.variableExpenses.reduce((sum, exp) => sum + exp.amount, 0) || 0) + amount
+          const available = (userData?.income || 0) - totalFixed - totalVariable
+
+          return `✅ Listo, ${description} por $${amount.toLocaleString('es-CO')}\n\n⚠️ Ojo: Ya tenías un gasto parecido hoy ("${duplicate.description}" por $${duplicate.amount.toLocaleString('es-CO')}). Si fue error, escribe "borrar último".\n\n📊 Te quedan $${available.toLocaleString('es-CO')} pa'l mes.`
+        }
+
+        // Add variable expense normally
         const newExpense: VariableExpense = {
           id: Date.now().toString(),
           description,
@@ -189,7 +295,6 @@ export default function Home() {
           }
         })
 
-        // Calculate new available amount
         const totalFixed = userData?.fixedExpenses.reduce((sum, exp) => sum + exp.amount, 0) || 0
         const totalVariable = (userData?.variableExpenses.reduce((sum, exp) => sum + exp.amount, 0) || 0) + amount
         const available = (userData?.income || 0) - totalFixed - totalVariable
@@ -215,15 +320,14 @@ export default function Home() {
 
       if (parsed.tipo === 'saludo') {
         const available = getAvailableMoney()
-        return `¡Qué más, parcero! 👋\n\nTe quedan $${available.toLocaleString('es-CO')} pa'l mes.\n\nCuéntame en qué gastaste, por ejemplo:\n• "Almuerzo 15000"\n• "10k en uber"\n• "Gasté 5 lucas en café"`
+        return `¡Qué más, parcero! 👋\n\nTe quedan $${available.toLocaleString('es-CO')} pa'l mes.\n\nCuéntame en qué gastaste, por ejemplo:\n• "Almuerzo 15000"\n• "10k en uber"\n• "Gasté 5 lucas en café"\n\n💡 Para borrar: "borrar último" o "quitar el uber"`
       }
 
       // Default: no_entendido
-      return 'Epa, no te entendí bien. 🤔\n\nEscríbeme algo como:\n• "Almuerzo 15000"\n• "10k uber"\n• "Gasté 5 lucas en café"\n\nO pregúntame "¿cuánto llevo?"'
+      return 'Epa, no te entendí bien. 🤔\n\nEscríbeme algo como:\n• "Almuerzo 15000"\n• "10k uber"\n• "Gasté 5 lucas en café"\n• "Borrar último gasto"\n\nO pregúntame "¿cuánto llevo?"'
 
     } catch (error) {
       console.error('Error parsing message:', error)
-      // Fallback to simple regex parsing
       return fallbackParse(message)
     }
   }

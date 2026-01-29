@@ -38,6 +38,21 @@ export default function ChatInterface({ onBack, onSendMessage, availableMoney }:
     scrollToBottom()
   }, [messages])
 
+  // Auto-focus input on mount and after sending
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
+  // Re-focus after loading completes
+  useEffect(() => {
+    if (!isLoading) {
+      // Small delay to ensure the input is enabled
+      setTimeout(() => {
+        inputRef.current?.focus()
+      }, 50)
+    }
+  }, [isLoading])
+
   const handleSend = async () => {
     if (!input.trim() || isLoading) return
 
