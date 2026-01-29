@@ -131,8 +131,8 @@ export default function TermsPage() {
             <h2 className="text-lg font-semibold text-white mb-3">11. Contacto</h2>
             <p>
               Para preguntas sobre estos términos, contáctanos en:{' '}
-              <a href="mailto:legal@mautolabs.com" className="text-primary hover:underline">
-                legal@mautolabs.com
+              <a href="mailto:mautolabs@gmail.com" className="text-primary hover:underline">
+                mautolabs@gmail.com
               </a>
             </p>
           </section>

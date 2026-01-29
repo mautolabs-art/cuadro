@@ -36,8 +36,8 @@ export default function PrivacyPage() {
             <p>
               <strong>Mauto Labs</strong><br />
               Bogotá, Colombia<br />
-              Email: <a href="mailto:privacidad@mautolabs.com" className="text-primary hover:underline">
-                privacidad@mautolabs.com
+              Email: <a href="mailto:mautolabs@gmail.com" className="text-primary hover:underline">
+                mautolabs@gmail.com
               </a>
             </p>
           </section>
@@ -146,8 +146,8 @@ export default function PrivacyPage() {
             </ul>
             <p className="mt-3">
               Para ejercer estos derechos, escríbenos a{' '}
-              <a href="mailto:privacidad@mautolabs.com" className="text-primary hover:underline">
-                privacidad@mautolabs.com
+              <a href="mailto:mautolabs@gmail.com" className="text-primary hover:underline">
+                mautolabs@gmail.com
               </a>
             </p>
           </section>
@@ -198,8 +198,8 @@ export default function PrivacyPage() {
             <p>
               Para preguntas sobre privacidad o ejercer tus derechos:<br />
               <strong>Email:</strong>{' '}
-              <a href="mailto:privacidad@mautolabs.com" className="text-primary hover:underline">
-                privacidad@mautolabs.com
+              <a href="mailto:mautolabs@gmail.com" className="text-primary hover:underline">
+                mautolabs@gmail.com
               </a><br />
               <strong>Superintendencia de Industria y Comercio (SIC):</strong>{' '}
               <a href="https://www.sic.gov.co" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">

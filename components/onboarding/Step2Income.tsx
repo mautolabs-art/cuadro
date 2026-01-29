@@ -94,8 +94,8 @@ export default function Step2Income({ onNext, onBack }: Props) {
         <div className="bg-background-card/50 rounded-lg p-3 flex items-start gap-2">
           <span className="text-lg">🔒</span>
           <p className="text-gray-500 text-xs">
-            Relax, tu info queda solo en tu cel.
-            No compartimos nada con nadie.
+            Tu información está protegida y encriptada.
+            Accede desde cualquier dispositivo.
           </p>
         </div>
       </div>

@@ -1,12 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { Home, Wifi, Tv, Car, CreditCard, Heart, GraduationCap, Smartphone, Plus, X, Zap, Droplets, Flame, Building, Signal } from 'lucide-react'
+import { Home, Wifi, Tv, Car, CreditCard, Heart, GraduationCap, Smartphone, Plus, X, Zap, Droplets, Flame, Building, Signal, Apple, ShoppingBag, Music, Gamepad2, Cloud, Film } from 'lucide-react'
 
 interface SubItem {
   id: string
   name: string
   amount: number
+  isCustom?: boolean
 }
 
 interface FixedExpense {
@@ -52,7 +53,12 @@ const defaultExpenses: FixedExpense[] = [
     subItems: [
       { id: 'netflix', name: 'Netflix', amount: 0 },
       { id: 'spotify', name: 'Spotify', amount: 0 },
-      { id: 'otros_stream', name: 'Otros', amount: 0 },
+      { id: 'amazon', name: 'Amazon Prime', amount: 0 },
+      { id: 'apple', name: 'Apple (iCloud/Music/TV)', amount: 0 },
+      { id: 'disney', name: 'Disney+', amount: 0 },
+      { id: 'hbo', name: 'Max (HBO)', amount: 0 },
+      { id: 'youtube', name: 'YouTube Premium', amount: 0 },
+      { id: 'gaming', name: 'Gaming (Xbox/PS/Nintendo)', amount: 0 },
     ]
   },
   { id: 'transporte', name: 'Transporte/Gasolina', icon: 'car', amount: 0, selected: false },
@@ -80,15 +86,23 @@ const subItemIcons: { [key: string]: React.ReactNode } = {
   internet: <Wifi className="w-4 h-4" />,
   celular: <Signal className="w-4 h-4" />,
   admin: <Building className="w-4 h-4" />,
-  netflix: <Tv className="w-4 h-4" />,
-  spotify: <Smartphone className="w-4 h-4" />,
-  otros_stream: <Plus className="w-4 h-4" />,
+  netflix: <Film className="w-4 h-4" />,
+  spotify: <Music className="w-4 h-4" />,
+  amazon: <ShoppingBag className="w-4 h-4" />,
+  apple: <Apple className="w-4 h-4" />,
+  disney: <Tv className="w-4 h-4" />,
+  hbo: <Tv className="w-4 h-4" />,
+  youtube: <Film className="w-4 h-4" />,
+  gaming: <Gamepad2 className="w-4 h-4" />,
+  cloud: <Cloud className="w-4 h-4" />,
 }
 
 export default function Step3FixedExpenses({ onNext, onBack }: Props) {
   const [expenses, setExpenses] = useState<FixedExpense[]>(defaultExpenses)
   const [showCustom, setShowCustom] = useState(false)
   const [customName, setCustomName] = useState('')
+  const [addingSubItemTo, setAddingSubItemTo] = useState<string | null>(null)
+  const [newSubItemName, setNewSubItemName] = useState('')
 
   const formatMoney = (value: string) => {
     const numbers = value.replace(/\D/g, '')
@@ -120,6 +134,40 @@ export default function Step3FixedExpenses({ onNext, onBack }: Props) {
           const updatedSubItems = exp.subItems.map(sub =>
             sub.id === subItemId ? { ...sub, amount: numericValue } : sub
           )
+          const totalAmount = updatedSubItems.reduce((sum, sub) => sum + sub.amount, 0)
+          return { ...exp, subItems: updatedSubItems, amount: totalAmount }
+        }
+        return exp
+      })
+    )
+  }
+
+  const addSubItem = (expenseId: string) => {
+    if (!newSubItemName.trim()) return
+
+    setExpenses(prev =>
+      prev.map(exp => {
+        if (exp.id === expenseId && exp.subItems) {
+          const newSubItem: SubItem = {
+            id: `custom-${Date.now()}`,
+            name: newSubItemName.trim(),
+            amount: 0,
+            isCustom: true
+          }
+          return { ...exp, subItems: [...exp.subItems, newSubItem] }
+        }
+        return exp
+      })
+    )
+    setNewSubItemName('')
+    setAddingSubItemTo(null)
+  }
+
+  const removeSubItem = (expenseId: string, subItemId: string) => {
+    setExpenses(prev =>
+      prev.map(exp => {
+        if (exp.id === expenseId && exp.subItems) {
+          const updatedSubItems = exp.subItems.filter(sub => sub.id !== subItemId)
           const totalAmount = updatedSubItems.reduce((sum, sub) => sum + sub.amount, 0)
           return { ...exp, subItems: updatedSubItems, amount: totalAmount }
         }
@@ -235,7 +283,17 @@ export default function Step3FixedExpenses({ onNext, onBack }: Props) {
                             {subItemIcons[subItem.id] || <Plus className="w-3 h-3" />}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-gray-400 text-xs truncate">{subItem.name}</p>
+                            <div className="flex items-center gap-1">
+                              <p className="text-gray-400 text-xs truncate">{subItem.name}</p>
+                              {subItem.isCustom && (
+                                <button
+                                  onClick={() => removeSubItem(expense.id, subItem.id)}
+                                  className="text-gray-600 hover:text-red-400"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
                             <div className="relative">
                               <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-xs">$</span>
                               <input
@@ -251,6 +309,44 @@ export default function Step3FixedExpenses({ onNext, onBack }: Props) {
                         </div>
                       ))}
                     </div>
+
+                    {/* Add new sub-item button */}
+                    {addingSubItemTo === expense.id ? (
+                      <div className="flex gap-2 mt-2">
+                        <input
+                          type="text"
+                          value={newSubItemName}
+                          onChange={(e) => setNewSubItemName(e.target.value)}
+                          placeholder="Nombre del servicio..."
+                          className="flex-1 bg-background border border-gray-700 rounded-md py-1.5 px-2 text-white text-sm outline-none focus:border-primary"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') addSubItem(expense.id)
+                            if (e.key === 'Escape') setAddingSubItemTo(null)
+                          }}
+                        />
+                        <button
+                          onClick={() => addSubItem(expense.id)}
+                          className="bg-primary text-white px-3 py-1.5 rounded-md text-sm"
+                        >
+                          +
+                        </button>
+                        <button
+                          onClick={() => setAddingSubItemTo(null)}
+                          className="bg-gray-700 text-white px-3 py-1.5 rounded-md text-sm"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setAddingSubItemTo(expense.id)}
+                        className="w-full mt-2 border border-dashed border-gray-600 rounded-md py-2 text-gray-400 text-xs hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-1"
+                      >
+                        <Plus className="w-3 h-3" />
+                        Agregar otro
+                      </button>
+                    )}
                   </div>
                 ) : (
                   // Regular single input
@@ -303,7 +399,7 @@ export default function Step3FixedExpenses({ onNext, onBack }: Props) {
             className="w-full bg-background-card border-2 border-dashed border-gray-700 rounded-xl p-4 text-gray-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
           >
             <Plus className="w-5 h-5" />
-            Agregar otro gasto fijo
+            Agregar otra categoría
           </button>
         )}
       </div>
