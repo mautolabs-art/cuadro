@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { CheckCircle2, Circle, TrendingDown, ChevronDown, ChevronUp, DollarSign, Edit3, Check, X, Settings, LogOut, LayoutDashboard } from 'lucide-react'
+import { useState } from 'react'
+import { CheckCircle2, Circle, TrendingDown, ChevronDown, ChevronUp, DollarSign, Edit3, Check, X, Settings, LogOut, LayoutDashboard, Pencil } from 'lucide-react'
+import EditFixedExpensesModal from './EditFixedExpensesModal'
 
 interface FixedExpense {
   id: string
@@ -32,6 +33,7 @@ interface Props {
   variableExpenses: VariableExpense[]
   onTogglePaid: (id: string) => void
   onUpdateIncome: (newIncome: number) => void
+  onUpdateFixedExpenses: (expenses: FixedExpense[]) => void
   onLogout: () => void
 }
 
@@ -41,6 +43,7 @@ export default function Dashboard({
   variableExpenses,
   onTogglePaid,
   onUpdateIncome,
+  onUpdateFixedExpenses,
   onLogout
 }: Props) {
   const [currentDate] = useState(new Date())
@@ -48,6 +51,7 @@ export default function Dashboard({
   const [editingIncome, setEditingIncome] = useState(false)
   const [tempIncome, setTempIncome] = useState(income.toString())
   const [showSettings, setShowSettings] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
 
   // Group expenses by category (using "Category: SubItem" naming convention)
   const groupExpenses = (): GroupedExpense[] => {
@@ -183,29 +187,41 @@ export default function Dashboard({
             </div>
           </div>
           {/* Settings button */}
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="p-2 hover:bg-background rounded-lg transition-colors"
-          >
-            <Settings className="w-5 h-5 text-gray-400" />
-          </button>
-        </div>
-
-        {/* Settings dropdown */}
-        {showSettings && (
-          <div className="absolute right-6 top-20 bg-background-card border border-gray-700 rounded-xl shadow-lg z-50 overflow-hidden">
+          <div className="relative">
             <button
-              onClick={() => {
-                setShowSettings(false)
-                onLogout()
-              }}
-              className="flex items-center gap-3 px-4 py-3 w-full hover:bg-background transition-colors text-left"
+              onClick={() => setShowSettings(!showSettings)}
+              className="p-2 hover:bg-background rounded-lg transition-colors"
             >
-              <LogOut className="w-4 h-4 text-gray-400" />
-              <span className="text-white">Cerrar sesión</span>
+              <Settings className="w-5 h-5 text-gray-400" />
             </button>
+
+            {/* Settings dropdown */}
+            {showSettings && (
+              <div className="absolute right-0 top-12 bg-background-card border border-gray-700 rounded-xl shadow-lg z-50 overflow-hidden min-w-[180px]">
+                <button
+                  onClick={() => {
+                    setShowSettings(false)
+                    setShowEditModal(true)
+                  }}
+                  className="flex items-center gap-3 px-4 py-3 w-full hover:bg-background transition-colors text-left"
+                >
+                  <Pencil className="w-4 h-4 text-gray-400" />
+                  <span className="text-white">Editar gastos fijos</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setShowSettings(false)
+                    onLogout()
+                  }}
+                  className="flex items-center gap-3 px-4 py-3 w-full hover:bg-background transition-colors text-left border-t border-gray-700"
+                >
+                  <LogOut className="w-4 h-4 text-gray-400" />
+                  <span className="text-white">Cerrar sesión</span>
+                </button>
+              </div>
+            )}
           </div>
-        )}
+        </div>
 
         {/* Income display/edit */}
         <div className="bg-background rounded-xl p-4 mb-4">
@@ -285,9 +301,18 @@ export default function Dashboard({
       <div className="p-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold text-white">Gastos fijos del mes</h2>
-          <span className="text-sm text-gray-400">
-            {fixedExpenses.filter(e => e.paid).length}/{fixedExpenses.length} pagados
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-400">
+              {fixedExpenses.filter(e => e.paid).length}/{fixedExpenses.length} pagados
+            </span>
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="p-1.5 hover:bg-background-card rounded-lg transition-colors"
+              title="Editar gastos fijos"
+            >
+              <Pencil className="w-4 h-4 text-gray-400 hover:text-primary" />
+            </button>
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -434,6 +459,14 @@ export default function Dashboard({
           </div>
         </div>
       )}
+
+      {/* Edit Fixed Expenses Modal */}
+      <EditFixedExpensesModal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        fixedExpenses={fixedExpenses}
+        onSave={onUpdateFixedExpenses}
+      />
     </div>
   )
 }

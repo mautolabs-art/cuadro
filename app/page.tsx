@@ -340,6 +340,42 @@ export default function Home() {
     })
   }
 
+  // Update fixed expenses (add, edit, remove)
+  const handleUpdateFixedExpenses = async (newExpenses: FixedExpense[]) => {
+    if (!userData || !dbUserId) return
+
+    try {
+      // Delete all existing fixed expenses
+      await db.deleteAllFixedExpenses(dbUserId)
+
+      // Create new ones
+      const expensesToCreate = newExpenses.map(exp => ({
+        user_id: dbUserId,
+        name: exp.name,
+        amount: exp.amount,
+        icon: exp.icon || undefined
+      }))
+
+      const createdExpenses = await db.createManyFixedExpenses(expensesToCreate)
+
+      // Update local state with new IDs from Supabase
+      const updatedExpenses = createdExpenses.map(exp => ({
+        id: exp.id,
+        name: exp.name,
+        amount: exp.amount,
+        icon: exp.icon || undefined,
+        paid: false // Reset paid status for new expenses
+      }))
+
+      setUserData(prev => {
+        if (!prev) return prev
+        return { ...prev, fixedExpenses: updatedExpenses }
+      })
+    } catch (error) {
+      console.error('Error updating fixed expenses:', error)
+    }
+  }
+
   // Handle logout
   const handleLogout = () => {
     localStorage.removeItem(AUTH_KEY)
@@ -630,6 +666,7 @@ export default function Home() {
             variableExpenses={userData.variableExpenses}
             onTogglePaid={handleTogglePaid}
             onUpdateIncome={handleUpdateIncome}
+            onUpdateFixedExpenses={handleUpdateFixedExpenses}
             onLogout={handleLogout}
           />
           {/* Back to chat floating button */}
