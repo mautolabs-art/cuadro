@@ -19,14 +19,9 @@ export default function Step1Welcome({ onNext }: Props) {
         ¿Qué más, cuadro? 👋
       </h1>
 
-      {/* Subtitle */}
-      <p className="text-gray-400 text-lg mb-2">
-        Te ayudo a cuadrar tus cuentas
-      </p>
-
       {/* Value proposition */}
       <p className="text-gray-300 text-base mb-8 max-w-xs">
-        Te ayudo a descubrir a dónde se va tu plata y a
+        Te ayudo a cuadrar tus cuentas, a descubrir a dónde se va tu plata y a
         <span className="text-primary font-semibold"> pillar esos gastos hormiga</span>
       </p>
 

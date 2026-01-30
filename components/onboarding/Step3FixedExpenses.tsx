@@ -199,7 +199,30 @@ export default function Step3FixedExpenses({ onNext, onBack }: Props) {
   const totalFixed = selectedExpenses.reduce((sum, exp) => sum + exp.amount, 0)
 
   const handleSubmit = () => {
-    onNext(selectedExpenses)
+    // Flatten expenses with sub-items into individual expenses with "Category: SubItem" naming
+    const flattenedExpenses: FixedExpense[] = []
+
+    selectedExpenses.forEach(expense => {
+      if (expense.hasSubItems && expense.subItems) {
+        // Add each sub-item with amount > 0 as individual expense with category prefix
+        expense.subItems.forEach(subItem => {
+          if (subItem.amount > 0) {
+            flattenedExpenses.push({
+              id: `${expense.id}-${subItem.id}`,
+              name: `${expense.name}: ${subItem.name}`,
+              icon: expense.icon,
+              amount: subItem.amount,
+              selected: true
+            })
+          }
+        })
+      } else if (expense.amount > 0) {
+        // Regular expense without sub-items
+        flattenedExpenses.push(expense)
+      }
+    })
+
+    onNext(flattenedExpenses)
   }
 
   return (

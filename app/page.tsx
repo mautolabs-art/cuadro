@@ -114,9 +114,9 @@ export default function Home() {
             setUserData(userData)
             localStorage.setItem(STORAGE_KEY, JSON.stringify(userData))
 
-            // Determine view
+            // Determine view - CHAT is now the default after onboarding
             if (dbUser.onboarding_complete) {
-              setCurrentView('dashboard')
+              setCurrentView('chat')
             } else {
               setCurrentView('onboarding')
             }
@@ -150,7 +150,7 @@ export default function Home() {
         }
         setUserData(parsed)
         if (parsed.onboardingComplete) {
-          setCurrentView('dashboard')
+          setCurrentView('chat')
         }
       }
     } finally {
@@ -222,7 +222,7 @@ export default function Home() {
             legalAccepted: true
           })
           setLegalAccepted(true)
-          setCurrentView('dashboard')
+          setCurrentView('chat') // Changed from 'dashboard' to 'chat'
           return
         }
       }
@@ -299,7 +299,7 @@ export default function Home() {
     }
 
     setUserData(newUserData)
-    setCurrentView('dashboard')
+    setCurrentView('chat') // Changed from 'dashboard' to 'chat'
   }
 
   // Toggle fixed expense paid status
@@ -323,6 +323,34 @@ export default function Home() {
         )
       }
     })
+  }
+
+  // Update income
+  const handleUpdateIncome = async (newIncome: number) => {
+    if (!userData) return
+
+    // Update in Supabase
+    if (dbUserId) {
+      await db.updateUser(dbUserId, { income: newIncome })
+    }
+
+    setUserData(prev => {
+      if (!prev) return prev
+      return { ...prev, income: newIncome }
+    })
+  }
+
+  // Handle logout
+  const handleLogout = () => {
+    localStorage.removeItem(AUTH_KEY)
+    localStorage.removeItem(USER_KEY)
+    localStorage.removeItem(STORAGE_KEY)
+    setIsAuthenticated(false)
+    setLegalAccepted(false)
+    setUserData(null)
+    setDbUserId(null)
+    setGoogleUser(null)
+    setCurrentView('auth')
   }
 
   // Check if expense is a duplicate
@@ -595,20 +623,33 @@ export default function Home() {
       )}
 
       {currentView === 'dashboard' && userData && (
-        <Dashboard
-          income={userData.income}
-          fixedExpenses={userData.fixedExpenses}
-          variableExpenses={userData.variableExpenses}
-          onTogglePaid={handleTogglePaid}
-          onOpenChat={() => setCurrentView('chat')}
-        />
+        <>
+          <Dashboard
+            income={userData.income}
+            fixedExpenses={userData.fixedExpenses}
+            variableExpenses={userData.variableExpenses}
+            onTogglePaid={handleTogglePaid}
+            onUpdateIncome={handleUpdateIncome}
+            onLogout={handleLogout}
+          />
+          {/* Back to chat floating button */}
+          <button
+            onClick={() => setCurrentView('chat')}
+            className="fixed bottom-6 right-6 w-16 h-16 bg-primary rounded-full shadow-lg shadow-primary/30 flex items-center justify-center hover:scale-105 transition-transform"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+          </button>
+        </>
       )}
 
       {currentView === 'chat' && userData && (
         <ChatInterface
-          onBack={() => setCurrentView('dashboard')}
           onSendMessage={handleSendMessage}
           availableMoney={getAvailableMoney()}
+          onOpenDashboard={() => setCurrentView('dashboard')}
+          onLogout={handleLogout}
         />
       )}
     </main>

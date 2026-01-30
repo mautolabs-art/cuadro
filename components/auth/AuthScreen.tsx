@@ -60,10 +60,7 @@ export default function AuthScreen({ onSuccess }: Props) {
       <div className="w-full max-w-sm">
         {/* Logo/Title */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">Cuadro</h1>
-          <p className="text-gray-400">
-            Tu parcero financiero personal
-          </p>
+          <h1 className="text-4xl font-bold text-white">Cuadro</h1>
         </div>
 
         {/* Google Sign-In */}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { ArrowLeft, Send, Loader2, Receipt } from 'lucide-react'
+import { Send, Loader2, Receipt, LayoutDashboard, Settings, LogOut } from 'lucide-react'
 
 interface Message {
   id: string
@@ -11,22 +11,24 @@ interface Message {
 }
 
 interface Props {
-  onBack: () => void
   onSendMessage: (message: string) => Promise<string>
   availableMoney: number
+  onOpenDashboard: () => void
+  onLogout: () => void
 }
 
-export default function ChatInterface({ onBack, onSendMessage, availableMoney }: Props) {
+export default function ChatInterface({ onSendMessage, availableMoney, onOpenDashboard, onLogout }: Props) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       type: 'assistant',
-      content: `💰 ¡Registra tu gasto!\n\nEscríbelo como quieras:\n• "Almuerzo 15000"\n• "15k en uber"\n• "Gasté 10 lucas en café"\n• "$8.000 en panadería"\n\nTe quedan $${availableMoney.toLocaleString('es-CO')} pa'l mes.`,
+      content: `¡Qué más, parcero! 👋\n\nTe quedan $${availableMoney.toLocaleString('es-CO')} pa'l mes.\n\nCuéntame en qué gastaste:\n• "Almuerzo 15000"\n• "10k en uber"\n• "Gasté 5 lucas en café"\n\n💡 Para borrar: "borrar último"`,
       timestamp: new Date()
     }
   ])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [showMenu, setShowMenu] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -115,21 +117,60 @@ export default function ChatInterface({ onBack, onSendMessage, availableMoney }:
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <div className="bg-background-card p-4 flex items-center gap-4 border-b border-gray-800">
-        <button
-          onClick={onBack}
-          className="p-2 hover:bg-background rounded-lg transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5 text-gray-400" />
-        </button>
         <div className="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center">
           <Receipt className="w-5 h-5 text-primary" />
         </div>
         <div className="flex-1">
-          <h1 className="text-white font-semibold">Registrar gasto</h1>
+          <h1 className="text-white font-semibold">Cuadro</h1>
           <p className="text-xs text-primary">
             Te quedan: ${availableMoney.toLocaleString('es-CO')}
           </p>
         </div>
+
+        {/* Dashboard button */}
+        <button
+          onClick={onOpenDashboard}
+          className="p-2 hover:bg-background rounded-lg transition-colors"
+          title="Ver resumen"
+        >
+          <LayoutDashboard className="w-5 h-5 text-gray-400" />
+        </button>
+
+        {/* Settings menu */}
+        <div className="relative">
+          <button
+            onClick={() => setShowMenu(!showMenu)}
+            className="p-2 hover:bg-background rounded-lg transition-colors"
+          >
+            <Settings className="w-5 h-5 text-gray-400" />
+          </button>
+
+          {showMenu && (
+            <div className="absolute right-0 top-12 bg-background-card border border-gray-700 rounded-xl shadow-lg z-50 overflow-hidden min-w-[160px]">
+              <button
+                onClick={() => {
+                  setShowMenu(false)
+                  onOpenDashboard()
+                }}
+                className="flex items-center gap-3 px-4 py-3 w-full hover:bg-background transition-colors text-left"
+              >
+                <LayoutDashboard className="w-4 h-4 text-gray-400" />
+                <span className="text-white text-sm">Ver resumen</span>
+              </button>
+              <button
+                onClick={() => {
+                  setShowMenu(false)
+                  onLogout()
+                }}
+                className="flex items-center gap-3 px-4 py-3 w-full hover:bg-background transition-colors text-left border-t border-gray-700"
+              >
+                <LogOut className="w-4 h-4 text-gray-400" />
+                <span className="text-white text-sm">Cerrar sesión</span>
+              </button>
+            </div>
+          )}
+        </div>
+
         <div className="w-3 h-3 bg-primary rounded-full animate-pulse"></div>
       </div>
 
