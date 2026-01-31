@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle2, Circle, TrendingDown, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, PiggyBank, Pencil } from 'lucide-react'
+import { CheckCircle2, Circle, TrendingDown, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, PiggyBank, Pencil, Check, X } from 'lucide-react'
 import EditFixedExpensesModal from './EditFixedExpensesModal'
 
 interface FixedExpense {
@@ -36,6 +36,8 @@ interface Props {
   currentYear: number
   onTogglePaid: (id: string) => void
   onChangeMonth: (month: number, year: number) => void
+  onUpdateIncome: (income: number) => void
+  onUpdateSavings: (savings: number) => void
   onUpdateFixedExpenses: (expenses: FixedExpense[]) => void
 }
 
@@ -48,10 +50,36 @@ export default function Dashboard({
   currentYear,
   onTogglePaid,
   onChangeMonth,
+  onUpdateIncome,
+  onUpdateSavings,
   onUpdateFixedExpenses
 }: Props) {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
   const [showEditModal, setShowEditModal] = useState(false)
+  const [editingIncome, setEditingIncome] = useState(false)
+  const [editingSavings, setEditingSavings] = useState(false)
+  const [tempIncome, setTempIncome] = useState(income.toString())
+  const [tempSavings, setTempSavings] = useState(savings.toString())
+
+  // Format money for input
+  const formatMoney = (value: string) => {
+    const numbers = value.replace(/\D/g, '')
+    return numbers.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  }
+
+  const handleSaveIncome = () => {
+    const newIncome = parseInt(tempIncome.replace(/\./g, '')) || 0
+    if (newIncome > 0) {
+      onUpdateIncome(newIncome)
+    }
+    setEditingIncome(false)
+  }
+
+  const handleSaveSavings = () => {
+    const newSavings = parseInt(tempSavings.replace(/\./g, '')) || 0
+    onUpdateSavings(newSavings)
+    setEditingSavings(false)
+  }
 
   // Group expenses by category (using "Category: SubItem" naming convention)
   const groupExpenses = (): GroupedExpense[] => {
@@ -212,18 +240,83 @@ export default function Dashboard({
           </button>
         </div>
 
-        {/* Income and Savings summary */}
+        {/* Income and Savings summary - EDITABLE */}
         <div className="grid grid-cols-2 gap-3 mb-4">
+          {/* Income */}
           <div className="bg-background rounded-xl p-3">
-            <p className="text-gray-500 text-xs">Ingreso</p>
-            <p className="text-white font-semibold">${income.toLocaleString('es-CO')}</p>
+            <p className="text-gray-500 text-xs mb-1">Ingreso</p>
+            {editingIncome ? (
+              <div className="flex items-center gap-1">
+                <div className="relative flex-1">
+                  <span className="absolute left-1 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={formatMoney(tempIncome)}
+                    onChange={(e) => setTempIncome(e.target.value.replace(/\./g, ''))}
+                    className="w-full bg-background-card border border-gray-600 rounded py-1 pl-4 pr-1 text-white text-sm outline-none focus:border-primary"
+                    autoFocus
+                  />
+                </div>
+                <button onClick={handleSaveIncome} className="p-1 text-primary hover:bg-primary/20 rounded">
+                  <Check className="w-4 h-4" />
+                </button>
+                <button onClick={() => setEditingIncome(false)} className="p-1 text-gray-400 hover:bg-gray-700 rounded">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  setTempIncome(income.toString())
+                  setEditingIncome(true)
+                }}
+                className="flex items-center gap-1 text-white font-semibold hover:text-primary transition-colors"
+              >
+                <span>${income.toLocaleString('es-CO')}</span>
+                <Pencil className="w-3 h-3 text-gray-500" />
+              </button>
+            )}
           </div>
+
+          {/* Savings */}
           <div className="bg-background rounded-xl p-3">
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 mb-1">
               <PiggyBank className="w-3 h-3 text-semaforo-verde" />
               <p className="text-gray-500 text-xs">Ahorro</p>
             </div>
-            <p className="text-semaforo-verde font-semibold">${savings.toLocaleString('es-CO')}</p>
+            {editingSavings ? (
+              <div className="flex items-center gap-1">
+                <div className="relative flex-1">
+                  <span className="absolute left-1 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={formatMoney(tempSavings)}
+                    onChange={(e) => setTempSavings(e.target.value.replace(/\./g, ''))}
+                    className="w-full bg-background-card border border-gray-600 rounded py-1 pl-4 pr-1 text-white text-sm outline-none focus:border-primary"
+                    autoFocus
+                  />
+                </div>
+                <button onClick={handleSaveSavings} className="p-1 text-primary hover:bg-primary/20 rounded">
+                  <Check className="w-4 h-4" />
+                </button>
+                <button onClick={() => setEditingSavings(false)} className="p-1 text-gray-400 hover:bg-gray-700 rounded">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  setTempSavings(savings.toString())
+                  setEditingSavings(true)
+                }}
+                className="flex items-center gap-1 text-semaforo-verde font-semibold hover:opacity-80 transition-colors"
+              >
+                <span>${savings.toLocaleString('es-CO')}</span>
+                <Pencil className="w-3 h-3 text-gray-500" />
+              </button>
+            )}
           </div>
         </div>
 

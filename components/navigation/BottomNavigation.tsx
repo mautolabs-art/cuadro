@@ -1,6 +1,6 @@
 'use client'
 
-import { MessageSquare, LayoutDashboard, Settings } from 'lucide-react'
+import { PlusCircle, LayoutDashboard, Settings } from 'lucide-react'
 
 type View = 'chat' | 'dashboard' | 'settings'
 
@@ -11,7 +11,7 @@ interface Props {
 
 export default function BottomNavigation({ currentView, onChangeView }: Props) {
   const navItems = [
-    { id: 'chat' as View, label: 'Registrar', icon: MessageSquare },
+    { id: 'chat' as View, label: 'Nuevo gasto', icon: PlusCircle },
     { id: 'dashboard' as View, label: 'Dashboard', icon: LayoutDashboard },
     { id: 'settings' as View, label: 'Ajustes', icon: Settings },
   ]
