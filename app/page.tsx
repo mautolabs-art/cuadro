@@ -6,6 +6,8 @@ import LegalConsent from '@/components/auth/LegalConsent'
 import OnboardingFlow from '@/components/onboarding/OnboardingFlow'
 import Dashboard from '@/components/dashboard/Dashboard'
 import ChatInterface from '@/components/chat/ChatInterface'
+import BottomNavigation from '@/components/navigation/BottomNavigation'
+import SettingsPage from '@/components/settings/SettingsPage'
 import { db } from '@/lib/supabase'
 
 interface FixedExpense {
@@ -46,19 +48,62 @@ const STORAGE_KEY = 'cuadro_user_data'
 const AUTH_KEY = 'cuadro_auth'
 const USER_KEY = 'cuadro_user'
 
+type View = 'chat' | 'dashboard' | 'settings'
+
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [legalAccepted, setLegalAccepted] = useState(false)
   const [userData, setUserData] = useState<UserData | null>(null)
-  const [currentView, setCurrentView] = useState<'auth' | 'legal' | 'onboarding' | 'dashboard' | 'chat'>('auth')
+  const [currentView, setCurrentView] = useState<'auth' | 'legal' | 'onboarding' | View>('auth')
   const [isLoading, setIsLoading] = useState(true)
   const [dbUserId, setDbUserId] = useState<string | null>(null)
   const [googleUser, setGoogleUser] = useState<GoogleUser | null>(null)
+
+  // Month/Year state for dashboard navigation
+  const now = new Date()
+  const [currentMonth, setCurrentMonth] = useState(now.getMonth() + 1)
+  const [currentYear, setCurrentYear] = useState(now.getFullYear())
+
+  // Displayed expenses (can differ by month)
+  const [displayedVariableExpenses, setDisplayedVariableExpenses] = useState<VariableExpense[]>([])
+  const [displayedFixedExpenseStatus, setDisplayedFixedExpenseStatus] = useState<Map<string, boolean>>(new Map())
 
   // Load data on mount
   useEffect(() => {
     loadUserData()
   }, [])
+
+  // Load expenses when month changes
+  useEffect(() => {
+    if (dbUserId && userData) {
+      loadMonthData(currentMonth, currentYear)
+    }
+  }, [currentMonth, currentYear, dbUserId])
+
+  const loadMonthData = async (month: number, year: number) => {
+    if (!dbUserId) return
+
+    // Load variable expenses for the month
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`
+    const endDate = `${year}-${String(month).padStart(2, '0')}-31`
+    const variableExpenses = await db.getVariableExpenses(dbUserId, startDate, endDate)
+
+    setDisplayedVariableExpenses(variableExpenses.map(exp => ({
+      id: exp.id,
+      description: exp.description,
+      amount: exp.amount,
+      category: exp.category,
+      date: new Date(exp.expense_date)
+    })))
+
+    // Load monthly expense status
+    const monthlyStatus = await db.getMonthlyExpenseStatus(dbUserId, year, month)
+    const statusMap = new Map<string, boolean>()
+    monthlyStatus.forEach(status => {
+      statusMap.set(status.expense_id, status.paid)
+    })
+    setDisplayedFixedExpenseStatus(statusMap)
+  }
 
   const loadUserData = async () => {
     try {
@@ -86,9 +131,16 @@ export default function Home() {
             const fixedExpenses = await db.getFixedExpenses(dbUser.id)
 
             // Load variable expenses (current month)
-            const now = new Date()
             const startOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
             const variableExpenses = await db.getVariableExpenses(dbUser.id, startOfMonth)
+
+            // Load monthly expense status for current month
+            const monthlyStatus = await db.getMonthlyExpenseStatus(dbUser.id, now.getFullYear(), now.getMonth() + 1)
+            const statusMap = new Map<string, boolean>()
+            monthlyStatus.forEach(status => {
+              statusMap.set(status.expense_id, status.paid)
+            })
+            setDisplayedFixedExpenseStatus(statusMap)
 
             const userData: UserData = {
               income: dbUser.income,
@@ -97,7 +149,7 @@ export default function Home() {
                 name: exp.name,
                 amount: exp.amount,
                 icon: exp.icon || undefined,
-                paid: exp.paid
+                paid: statusMap.get(exp.id) || false
               })),
               variableExpenses: variableExpenses.map(exp => ({
                 id: exp.id,
@@ -112,6 +164,7 @@ export default function Home() {
             }
 
             setUserData(userData)
+            setDisplayedVariableExpenses(userData.variableExpenses)
             localStorage.setItem(STORAGE_KEY, JSON.stringify(userData))
 
             // Determine view - CHAT is now the default after onboarding
@@ -149,6 +202,7 @@ export default function Home() {
           }))
         }
         setUserData(parsed)
+        setDisplayedVariableExpenses(parsed.variableExpenses || [])
         if (parsed.onboardingComplete) {
           setCurrentView('chat')
         }
@@ -197,18 +251,25 @@ export default function Home() {
         if (dbUser.onboarding_complete) {
           // Load existing data
           const fixedExpenses = await db.getFixedExpenses(dbUser.id)
-          const now = new Date()
           const startOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
           const variableExpenses = await db.getVariableExpenses(dbUser.id, startOfMonth)
 
-          setUserData({
+          // Load monthly expense status
+          const monthlyStatus = await db.getMonthlyExpenseStatus(dbUser.id, now.getFullYear(), now.getMonth() + 1)
+          const statusMap = new Map<string, boolean>()
+          monthlyStatus.forEach(status => {
+            statusMap.set(status.expense_id, status.paid)
+          })
+          setDisplayedFixedExpenseStatus(statusMap)
+
+          const loadedUserData: UserData = {
             income: dbUser.income,
             fixedExpenses: fixedExpenses.map(exp => ({
               id: exp.id,
               name: exp.name,
               amount: exp.amount,
               icon: exp.icon || undefined,
-              paid: exp.paid
+              paid: statusMap.get(exp.id) || false
             })),
             variableExpenses: variableExpenses.map(exp => ({
               id: exp.id,
@@ -220,9 +281,12 @@ export default function Home() {
             savings: dbUser.savings,
             onboardingComplete: true,
             legalAccepted: true
-          })
+          }
+
+          setUserData(loadedUserData)
+          setDisplayedVariableExpenses(loadedUserData.variableExpenses)
           setLegalAccepted(true)
-          setCurrentView('chat') // Changed from 'dashboard' to 'chat'
+          setCurrentView('chat')
           return
         }
       }
@@ -294,35 +358,61 @@ export default function Home() {
         name: exp.name,
         amount: exp.amount,
         icon: exp.icon || undefined,
-        paid: exp.paid
+        paid: false
       }))
     }
 
     setUserData(newUserData)
-    setCurrentView('chat') // Changed from 'dashboard' to 'chat'
+    setDisplayedVariableExpenses([])
+    setCurrentView('chat')
   }
 
-  // Toggle fixed expense paid status
+  // Handle month change
+  const handleChangeMonth = (month: number, year: number) => {
+    setCurrentMonth(month)
+    setCurrentYear(year)
+  }
+
+  // Get fixed expenses with status for the displayed month
+  const getFixedExpensesWithStatus = (): FixedExpense[] => {
+    if (!userData) return []
+
+    return userData.fixedExpenses.map(exp => ({
+      ...exp,
+      paid: displayedFixedExpenseStatus.get(exp.id) || false
+    }))
+  }
+
+  // Toggle fixed expense paid status - NOW PER MONTH
   const handleTogglePaid = async (id: string) => {
-    if (!userData) return
+    if (!userData || !dbUserId) return
 
-    const expense = userData.fixedExpenses.find(exp => exp.id === id)
-    if (!expense) return
+    const currentStatus = displayedFixedExpenseStatus.get(id) || false
+    const newStatus = !currentStatus
 
-    // Update in Supabase
-    if (dbUserId) {
-      await db.updateFixedExpense(id, { paid: !expense.paid })
-    }
+    // Update in Supabase with monthly tracking
+    await db.setExpensePaidStatus(dbUserId, id, currentYear, currentMonth, newStatus)
 
-    setUserData(prev => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        fixedExpenses: prev.fixedExpenses.map(exp =>
-          exp.id === id ? { ...exp, paid: !exp.paid } : exp
-        )
-      }
+    // Update local state
+    setDisplayedFixedExpenseStatus(prev => {
+      const next = new Map(prev)
+      next.set(id, newStatus)
+      return next
     })
+
+    // Also update userData if current month
+    const nowDate = new Date()
+    if (currentMonth === nowDate.getMonth() + 1 && currentYear === nowDate.getFullYear()) {
+      setUserData(prev => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          fixedExpenses: prev.fixedExpenses.map(exp =>
+            exp.id === id ? { ...exp, paid: newStatus } : exp
+          )
+        }
+      })
+    }
   }
 
   // Update income
@@ -338,6 +428,76 @@ export default function Home() {
       if (!prev) return prev
       return { ...prev, income: newIncome }
     })
+  }
+
+  // Update savings
+  const handleUpdateSavings = async (newSavings: number) => {
+    if (!userData) return
+
+    // Update in Supabase
+    if (dbUserId) {
+      await db.updateUser(dbUserId, { savings: newSavings })
+    }
+
+    setUserData(prev => {
+      if (!prev) return prev
+      return { ...prev, savings: newSavings }
+    })
+  }
+
+  // Update fixed expenses (add, edit, remove)
+  const handleUpdateFixedExpenses = async (newExpenses: FixedExpense[]) => {
+    if (!userData || !dbUserId) return
+
+    try {
+      // Delete all existing fixed expenses
+      await db.deleteAllFixedExpenses(dbUserId)
+
+      // Create new ones
+      const expensesToCreate = newExpenses.map(exp => ({
+        user_id: dbUserId,
+        name: exp.name,
+        amount: exp.amount,
+        icon: exp.icon || undefined
+      }))
+
+      const createdExpenses = await db.createManyFixedExpenses(expensesToCreate)
+
+      // Update local state with new IDs from Supabase
+      const updatedExpenses = createdExpenses.map(exp => ({
+        id: exp.id,
+        name: exp.name,
+        amount: exp.amount,
+        icon: exp.icon || undefined,
+        paid: false // Reset paid status for new expenses
+      }))
+
+      // Clear monthly status for this month (new expenses)
+      setDisplayedFixedExpenseStatus(new Map())
+
+      setUserData(prev => {
+        if (!prev) return prev
+        return { ...prev, fixedExpenses: updatedExpenses }
+      })
+    } catch (error) {
+      console.error('Error updating fixed expenses:', error)
+    }
+  }
+
+  // Send feedback
+  const handleSendFeedback = async (message: string): Promise<boolean> => {
+    if (!dbUserId) return false
+
+    try {
+      const feedback = await db.createFeedback({
+        user_id: dbUserId,
+        message
+      })
+      return feedback !== null
+    } catch (error) {
+      console.error('Error sending feedback:', error)
+      return false
+    }
   }
 
   // Handle logout
@@ -405,6 +565,12 @@ export default function Home() {
       }
     })
 
+    // Also update displayed if current month
+    const nowDate = new Date()
+    if (currentMonth === nowDate.getMonth() + 1 && currentYear === nowDate.getFullYear()) {
+      setDisplayedVariableExpenses(prev => [...prev, newExpense])
+    }
+
     return newExpense
   }
 
@@ -443,6 +609,9 @@ export default function Home() {
           variableExpenses: prev.variableExpenses.filter(exp => exp.id !== expenseToDelete!.id)
         }
       })
+
+      // Also update displayed
+      setDisplayedVariableExpenses(prev => prev.filter(exp => exp.id !== expenseToDelete!.id))
 
       return {
         deleted: expenseToDelete,
@@ -491,9 +660,7 @@ export default function Home() {
         const duplicate = checkForDuplicate(description, amount)
         await addVariableExpense(description, amount, category)
 
-        const totalFixed = userData?.fixedExpenses.reduce((sum, exp) => sum + exp.amount, 0) || 0
-        const totalVariable = (userData?.variableExpenses.reduce((sum, exp) => sum + exp.amount, 0) || 0) + amount
-        const available = (userData?.income || 0) - totalFixed - totalVariable
+        const available = getAvailableMoney() - amount
 
         if (duplicate) {
           return `✅ Listo, ${description} por $${amount.toLocaleString('es-CO')}\n\n⚠️ Ojo: Ya tenías un gasto parecido hoy ("${duplicate.description}" por $${duplicate.amount.toLocaleString('es-CO')}). Si fue error, escribe "borrar último".\n\n📊 Te quedan $${available.toLocaleString('es-CO')} pa'l mes.`
@@ -592,12 +759,17 @@ export default function Home() {
       .sort((a, b) => b.total - a.total)
   }
 
-  // Calculate available money
+  // Calculate available money - NOW SUBTRACTING SAVINGS
   const getAvailableMoney = () => {
     if (!userData) return 0
     const totalFixed = userData.fixedExpenses.reduce((sum, exp) => sum + exp.amount, 0)
     const totalVariable = userData.variableExpenses.reduce((sum, exp) => sum + exp.amount, 0)
-    return userData.income - totalFixed - totalVariable
+    return userData.income - userData.savings - totalFixed - totalVariable
+  }
+
+  // Handle view change from bottom nav
+  const handleViewChange = (view: View) => {
+    setCurrentView(view)
   }
 
   if (isLoading) {
@@ -607,6 +779,9 @@ export default function Home() {
       </div>
     )
   }
+
+  // Check if we're in authenticated state with a main view
+  const isMainView = currentView === 'chat' || currentView === 'dashboard' || currentView === 'settings'
 
   return (
     <main className="min-h-screen bg-background">
@@ -623,25 +798,17 @@ export default function Home() {
       )}
 
       {currentView === 'dashboard' && userData && (
-        <>
-          <Dashboard
-            income={userData.income}
-            fixedExpenses={userData.fixedExpenses}
-            variableExpenses={userData.variableExpenses}
-            onTogglePaid={handleTogglePaid}
-            onUpdateIncome={handleUpdateIncome}
-            onLogout={handleLogout}
-          />
-          {/* Back to chat floating button */}
-          <button
-            onClick={() => setCurrentView('chat')}
-            className="fixed bottom-6 right-6 w-16 h-16 bg-primary rounded-full shadow-lg shadow-primary/30 flex items-center justify-center hover:scale-105 transition-transform"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
-          </button>
-        </>
+        <Dashboard
+          income={userData.income}
+          savings={userData.savings}
+          fixedExpenses={getFixedExpensesWithStatus()}
+          variableExpenses={displayedVariableExpenses}
+          currentMonth={currentMonth}
+          currentYear={currentYear}
+          onTogglePaid={handleTogglePaid}
+          onChangeMonth={handleChangeMonth}
+          onUpdateFixedExpenses={handleUpdateFixedExpenses}
+        />
       )}
 
       {currentView === 'chat' && userData && (
@@ -650,6 +817,27 @@ export default function Home() {
           availableMoney={getAvailableMoney()}
           onOpenDashboard={() => setCurrentView('dashboard')}
           onLogout={handleLogout}
+        />
+      )}
+
+      {currentView === 'settings' && userData && (
+        <SettingsPage
+          income={userData.income}
+          savings={userData.savings}
+          fixedExpenses={userData.fixedExpenses}
+          onUpdateIncome={handleUpdateIncome}
+          onUpdateSavings={handleUpdateSavings}
+          onUpdateFixedExpenses={handleUpdateFixedExpenses}
+          onSendFeedback={handleSendFeedback}
+          onLogout={handleLogout}
+        />
+      )}
+
+      {/* Bottom Navigation - only show on main views */}
+      {isMainView && userData && (
+        <BottomNavigation
+          currentView={currentView as View}
+          onChangeView={handleViewChange}
         />
       )}
     </main>

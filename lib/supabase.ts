@@ -41,6 +41,24 @@ export interface DbVariableExpense {
   created_at: string
 }
 
+export interface DbFeedback {
+  id: string
+  user_id: string
+  message: string
+  created_at: string
+}
+
+export interface DbMonthlyExpenseStatus {
+  id: string
+  user_id: string
+  expense_id: string
+  year: number
+  month: number
+  paid: boolean
+  paid_at: string | null
+  created_at: string
+}
+
 // Database functions
 export const db = {
   // === USERS ===
@@ -286,6 +304,83 @@ export const db = {
     return Object.entries(totals)
       .map(([category, total]) => ({ category, total }))
       .sort((a, b) => b.total - a.total)
+  },
+
+  // === FEEDBACK ===
+  async createFeedback(feedback: {
+    user_id: string
+    message: string
+  }): Promise<DbFeedback | null> {
+    const { data, error } = await supabase
+      .from('feedback')
+      .insert(feedback)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error creating feedback:', error)
+      return null
+    }
+    return data
+  },
+
+  // === MONTHLY EXPENSE STATUS ===
+  async getMonthlyExpenseStatus(userId: string, year: number, month: number): Promise<DbMonthlyExpenseStatus[]> {
+    const { data, error } = await supabase
+      .from('monthly_expense_status')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('year', year)
+      .eq('month', month)
+
+    if (error) {
+      console.error('Error fetching monthly expense status:', error)
+      return []
+    }
+    return data || []
+  },
+
+  async setExpensePaidStatus(
+    userId: string,
+    expenseId: string,
+    year: number,
+    month: number,
+    paid: boolean
+  ): Promise<DbMonthlyExpenseStatus | null> {
+    // Try to upsert (insert or update)
+    const { data, error } = await supabase
+      .from('monthly_expense_status')
+      .upsert({
+        user_id: userId,
+        expense_id: expenseId,
+        year,
+        month,
+        paid,
+        paid_at: paid ? new Date().toISOString() : null
+      }, {
+        onConflict: 'expense_id,year,month'
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error setting expense paid status:', error)
+      return null
+    }
+    return data
+  },
+
+  async deleteMonthlyStatusForExpense(expenseId: string): Promise<boolean> {
+    const { error } = await supabase
+      .from('monthly_expense_status')
+      .delete()
+      .eq('expense_id', expenseId)
+
+    if (error) {
+      console.error('Error deleting monthly status:', error)
+      return false
+    }
+    return true
   }
 }
 

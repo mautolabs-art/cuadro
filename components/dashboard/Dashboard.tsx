@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { CheckCircle2, Circle, TrendingDown, ChevronDown, ChevronUp, DollarSign, Edit3, Check, X, Settings, LogOut, LayoutDashboard } from 'lucide-react'
+import { useState } from 'react'
+import { CheckCircle2, Circle, TrendingDown, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, PiggyBank, Pencil } from 'lucide-react'
+import EditFixedExpensesModal from './EditFixedExpensesModal'
 
 interface FixedExpense {
   id: string
@@ -28,26 +29,29 @@ interface GroupedExpense {
 
 interface Props {
   income: number
+  savings: number
   fixedExpenses: FixedExpense[]
   variableExpenses: VariableExpense[]
+  currentMonth: number
+  currentYear: number
   onTogglePaid: (id: string) => void
-  onUpdateIncome: (newIncome: number) => void
-  onLogout: () => void
+  onChangeMonth: (month: number, year: number) => void
+  onUpdateFixedExpenses: (expenses: FixedExpense[]) => void
 }
 
 export default function Dashboard({
   income,
+  savings,
   fixedExpenses,
   variableExpenses,
+  currentMonth,
+  currentYear,
   onTogglePaid,
-  onUpdateIncome,
-  onLogout
+  onChangeMonth,
+  onUpdateFixedExpenses
 }: Props) {
-  const [currentDate] = useState(new Date())
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
-  const [editingIncome, setEditingIncome] = useState(false)
-  const [tempIncome, setTempIncome] = useState(income.toString())
-  const [showSettings, setShowSettings] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
 
   // Group expenses by category (using "Category: SubItem" naming convention)
   const groupExpenses = (): GroupedExpense[] => {
@@ -98,17 +102,17 @@ export default function Dashboard({
 
   const groupedExpenses = groupExpenses()
 
-  // Calculations
+  // Calculations - NOW SUBTRACTING SAVINGS
   const totalFixedExpenses = fixedExpenses.reduce((sum, exp) => sum + exp.amount, 0)
   const paidFixedExpenses = fixedExpenses.filter(exp => exp.paid).reduce((sum, exp) => sum + exp.amount, 0)
   const unpaidFixedExpenses = totalFixedExpenses - paidFixedExpenses
   const totalVariableExpenses = variableExpenses.reduce((sum, exp) => sum + exp.amount, 0)
 
-  // Available = Income - Paid Fixed - Variable - Pending Fixed
-  const currentAvailable = income - paidFixedExpenses - totalVariableExpenses - unpaidFixedExpenses
+  // Available = Income - Savings - Paid Fixed - Variable - Pending Fixed
+  const currentAvailable = income - savings - paidFixedExpenses - totalVariableExpenses - unpaidFixedExpenses
 
-  // Percentage for semaphore
-  const initialAvailable = income - totalFixedExpenses
+  // Percentage for semaphore (based on what's available after savings and fixed)
+  const initialAvailable = income - savings - totalFixedExpenses
   const percentageAvailable = initialAvailable > 0 ? Math.round((currentAvailable / initialAvailable) * 100) : 0
 
   // Semaphore logic
@@ -126,8 +130,33 @@ export default function Dashboard({
     rojo: 'text-semaforo-rojo bg-semaforo-rojo/10 border-semaforo-rojo/30'
   }
 
-  // Get current month name in Spanish
-  const monthName = currentDate.toLocaleDateString('es-CO', { month: 'long' })
+  // Month names in Spanish
+  const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+  const monthName = monthNames[currentMonth - 1]
+
+  // Check if viewing current month
+  const now = new Date()
+  const isCurrentMonth = currentMonth === (now.getMonth() + 1) && currentYear === now.getFullYear()
+
+  // Navigation handlers
+  const goToPreviousMonth = () => {
+    if (currentMonth === 1) {
+      onChangeMonth(12, currentYear - 1)
+    } else {
+      onChangeMonth(currentMonth - 1, currentYear)
+    }
+  }
+
+  const goToNextMonth = () => {
+    // Don't allow navigating past current month
+    if (isCurrentMonth) return
+
+    if (currentMonth === 12) {
+      onChangeMonth(1, currentYear + 1)
+    } else {
+      onChangeMonth(currentMonth + 1, currentYear)
+    }
+  }
 
   // Toggle category expansion
   const toggleCategory = (category: string) => {
@@ -142,21 +171,6 @@ export default function Dashboard({
     })
   }
 
-  // Format money for input
-  const formatMoney = (value: string) => {
-    const numbers = value.replace(/\D/g, '')
-    return numbers.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-  }
-
-  // Handle income save
-  const handleSaveIncome = () => {
-    const newIncome = parseInt(tempIncome.replace(/\./g, '')) || 0
-    if (newIncome > 0) {
-      onUpdateIncome(newIncome)
-    }
-    setEditingIncome(false)
-  }
-
   // Get display name (remove category prefix for sub-items)
   const getDisplayName = (expense: FixedExpense) => {
     if (expense.name.includes(': ')) {
@@ -169,83 +183,47 @@ export default function Dashboard({
   const recentExpenses = variableExpenses.slice(-3).reverse()
 
   return (
-    <div className="min-h-screen bg-background pb-6">
-      {/* Header */}
+    <div className="min-h-screen bg-background pb-24">
+      {/* Header with month navigation */}
       <div className="bg-background-card p-6 pb-8">
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center">
-              <LayoutDashboard className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-gray-400 text-sm capitalize">{monthName} 2025</p>
-              <h1 className="text-xl font-bold text-white">Tu resumen</h1>
-            </div>
-          </div>
-          {/* Settings button */}
+        <div className="flex justify-center items-center gap-4 mb-6">
           <button
-            onClick={() => setShowSettings(!showSettings)}
+            onClick={goToPreviousMonth}
             className="p-2 hover:bg-background rounded-lg transition-colors"
           >
-            <Settings className="w-5 h-5 text-gray-400" />
+            <ChevronLeft className="w-6 h-6 text-gray-400" />
+          </button>
+          <div className="text-center min-w-[160px]">
+            <h1 className="text-xl font-bold text-white">{monthName} {currentYear}</h1>
+            {!isCurrentMonth && (
+              <p className="text-gray-500 text-xs mt-1">Mes anterior</p>
+            )}
+          </div>
+          <button
+            onClick={goToNextMonth}
+            className={`p-2 rounded-lg transition-colors ${
+              isCurrentMonth
+                ? 'text-gray-700 cursor-not-allowed'
+                : 'hover:bg-background text-gray-400'
+            }`}
+            disabled={isCurrentMonth}
+          >
+            <ChevronRight className="w-6 h-6" />
           </button>
         </div>
 
-        {/* Settings dropdown */}
-        {showSettings && (
-          <div className="absolute right-6 top-20 bg-background-card border border-gray-700 rounded-xl shadow-lg z-50 overflow-hidden">
-            <button
-              onClick={() => {
-                setShowSettings(false)
-                onLogout()
-              }}
-              className="flex items-center gap-3 px-4 py-3 w-full hover:bg-background transition-colors text-left"
-            >
-              <LogOut className="w-4 h-4 text-gray-400" />
-              <span className="text-white">Cerrar sesión</span>
-            </button>
+        {/* Income and Savings summary */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="bg-background rounded-xl p-3">
+            <p className="text-gray-500 text-xs">Ingreso</p>
+            <p className="text-white font-semibold">${income.toLocaleString('es-CO')}</p>
           </div>
-        )}
-
-        {/* Income display/edit */}
-        <div className="bg-background rounded-xl p-4 mb-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-gray-400" />
-              <span className="text-gray-400">Ingreso mensual</span>
+          <div className="bg-background rounded-xl p-3">
+            <div className="flex items-center gap-1">
+              <PiggyBank className="w-3 h-3 text-semaforo-verde" />
+              <p className="text-gray-500 text-xs">Ahorro</p>
             </div>
-            {editingIncome ? (
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400">$</span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={formatMoney(tempIncome)}
-                    onChange={(e) => setTempIncome(e.target.value.replace(/\./g, ''))}
-                    className="w-32 bg-background-card border border-gray-600 rounded-lg py-1 pl-6 pr-2 text-white text-right outline-none focus:border-primary"
-                    autoFocus
-                  />
-                </div>
-                <button onClick={handleSaveIncome} className="p-1 text-primary hover:bg-primary/20 rounded">
-                  <Check className="w-4 h-4" />
-                </button>
-                <button onClick={() => setEditingIncome(false)} className="p-1 text-gray-400 hover:bg-gray-700 rounded">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => {
-                  setTempIncome(income.toString())
-                  setEditingIncome(true)
-                }}
-                className="flex items-center gap-2 text-white hover:text-primary transition-colors"
-              >
-                <span className="font-semibold">${income.toLocaleString('es-CO')}</span>
-                <Edit3 className="w-4 h-4 text-gray-500" />
-              </button>
-            )}
+            <p className="text-semaforo-verde font-semibold">${savings.toLocaleString('es-CO')}</p>
           </div>
         </div>
 
@@ -285,9 +263,18 @@ export default function Dashboard({
       <div className="p-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold text-white">Gastos fijos del mes</h2>
-          <span className="text-sm text-gray-400">
-            {fixedExpenses.filter(e => e.paid).length}/{fixedExpenses.length} pagados
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-400">
+              {fixedExpenses.filter(e => e.paid).length}/{fixedExpenses.length} pagados
+            </span>
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="p-1.5 hover:bg-background-card rounded-lg transition-colors"
+              title="Editar gastos fijos"
+            >
+              <Pencil className="w-4 h-4 text-gray-400 hover:text-primary" />
+            </button>
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -434,6 +421,14 @@ export default function Dashboard({
           </div>
         </div>
       )}
+
+      {/* Edit Fixed Expenses Modal */}
+      <EditFixedExpensesModal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        fixedExpenses={fixedExpenses}
+        onSave={onUpdateFixedExpenses}
+      />
     </div>
   )
 }

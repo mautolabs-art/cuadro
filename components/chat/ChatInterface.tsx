@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Loader2, Receipt, LayoutDashboard, Settings, LogOut } from 'lucide-react'
+import { Send, Loader2, Receipt } from 'lucide-react'
 
 interface Message {
   id: string
@@ -17,7 +17,7 @@ interface Props {
   onLogout: () => void
 }
 
-export default function ChatInterface({ onSendMessage, availableMoney, onOpenDashboard, onLogout }: Props) {
+export default function ChatInterface({ onSendMessage, availableMoney }: Props) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -28,7 +28,6 @@ export default function ChatInterface({ onSendMessage, availableMoney, onOpenDas
   ])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [showMenu, setShowMenu] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -114,63 +113,18 @@ export default function ChatInterface({ onSendMessage, availableMoney, onOpenDas
   ]
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
+    <div className="min-h-screen bg-background flex flex-col pb-16">
+      {/* Header - simplified */}
       <div className="bg-background-card p-4 flex items-center gap-4 border-b border-gray-800">
         <div className="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center">
           <Receipt className="w-5 h-5 text-primary" />
         </div>
         <div className="flex-1">
-          <h1 className="text-white font-semibold">Cuadro</h1>
+          <h1 className="text-white font-semibold">Registrar gasto</h1>
           <p className="text-xs text-primary">
-            Te quedan: ${availableMoney.toLocaleString('es-CO')}
+            Disponible: ${availableMoney.toLocaleString('es-CO')}
           </p>
         </div>
-
-        {/* Dashboard button */}
-        <button
-          onClick={onOpenDashboard}
-          className="p-2 hover:bg-background rounded-lg transition-colors"
-          title="Ver resumen"
-        >
-          <LayoutDashboard className="w-5 h-5 text-gray-400" />
-        </button>
-
-        {/* Settings menu */}
-        <div className="relative">
-          <button
-            onClick={() => setShowMenu(!showMenu)}
-            className="p-2 hover:bg-background rounded-lg transition-colors"
-          >
-            <Settings className="w-5 h-5 text-gray-400" />
-          </button>
-
-          {showMenu && (
-            <div className="absolute right-0 top-12 bg-background-card border border-gray-700 rounded-xl shadow-lg z-50 overflow-hidden min-w-[160px]">
-              <button
-                onClick={() => {
-                  setShowMenu(false)
-                  onOpenDashboard()
-                }}
-                className="flex items-center gap-3 px-4 py-3 w-full hover:bg-background transition-colors text-left"
-              >
-                <LayoutDashboard className="w-4 h-4 text-gray-400" />
-                <span className="text-white text-sm">Ver resumen</span>
-              </button>
-              <button
-                onClick={() => {
-                  setShowMenu(false)
-                  onLogout()
-                }}
-                className="flex items-center gap-3 px-4 py-3 w-full hover:bg-background transition-colors text-left border-t border-gray-700"
-              >
-                <LogOut className="w-4 h-4 text-gray-400" />
-                <span className="text-white text-sm">Cerrar sesión</span>
-              </button>
-            </div>
-          )}
-        </div>
-
         <div className="w-3 h-3 bg-primary rounded-full animate-pulse"></div>
       </div>
 
