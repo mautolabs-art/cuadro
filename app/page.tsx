@@ -8,7 +8,6 @@ import Dashboard from '@/components/dashboard/Dashboard'
 import ChatInterface from '@/components/chat/ChatInterface'
 import BottomNavigation from '@/components/navigation/BottomNavigation'
 import SettingsPage from '@/components/settings/SettingsPage'
-import FeedbackButton from '@/components/feedback/FeedbackButton'
 import { db } from '@/lib/supabase'
 
 interface FixedExpense {
@@ -825,13 +824,9 @@ export default function Home() {
 
       {currentView === 'settings' && userData && (
         <SettingsPage
+          onSendFeedback={handleSendFeedback}
           onLogout={handleLogout}
         />
-      )}
-
-      {/* Feedback Button - show on all main views */}
-      {isMainView && userData && (
-        <FeedbackButton onSendFeedback={handleSendFeedback} />
       )}
 
       {/* Bottom Navigation - only show on main views */}
