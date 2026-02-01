@@ -1,7 +1,15 @@
 'use client'
 
-import { useState } from 'react'
-import { LogOut, MessageSquare, ChevronRight, X, Check, Send } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { LogOut, MessageSquare, ChevronRight, X, Check, Send, Bell, BellOff } from 'lucide-react'
+import {
+  isNotificationSupported,
+  getNotificationPermission,
+  areNotificationsEnabled,
+  requestNotificationPermission,
+  disableNotifications,
+  enableNotifications
+} from '@/lib/notifications'
 
 interface Props {
   onSendFeedback: (message: string) => Promise<boolean>
@@ -13,6 +21,46 @@ export default function SettingsPage({ onSendFeedback, onLogout }: Props) {
   const [feedbackMessage, setFeedbackMessage] = useState('')
   const [feedbackSending, setFeedbackSending] = useState(false)
   const [feedbackSent, setFeedbackSent] = useState(false)
+
+  // Notification state
+  const [notificationsSupported, setNotificationsSupported] = useState(false)
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false)
+  const [notificationPermission, setNotificationPermission] = useState<string>('default')
+  const [requestingPermission, setRequestingPermission] = useState(false)
+
+  useEffect(() => {
+    // Check notification support and status on mount
+    const supported = isNotificationSupported()
+    setNotificationsSupported(supported)
+
+    if (supported) {
+      setNotificationPermission(getNotificationPermission())
+      setNotificationsEnabled(areNotificationsEnabled())
+    }
+  }, [])
+
+  const handleToggleNotifications = async () => {
+    if (notificationsEnabled) {
+      // Disable notifications
+      disableNotifications()
+      setNotificationsEnabled(false)
+    } else {
+      // Enable notifications - need to request permission if not granted
+      if (notificationPermission !== 'granted') {
+        setRequestingPermission(true)
+        const granted = await requestNotificationPermission()
+        setRequestingPermission(false)
+
+        if (granted) {
+          setNotificationPermission('granted')
+          setNotificationsEnabled(true)
+        }
+      } else {
+        enableNotifications()
+        setNotificationsEnabled(true)
+      }
+    }
+  }
 
   const handleSendFeedback = async () => {
     if (!feedbackMessage.trim()) return
@@ -40,6 +88,55 @@ export default function SettingsPage({ onSendFeedback, onLogout }: Props) {
 
       {/* Content */}
       <div className="p-6 space-y-6">
+        {/* Notifications section */}
+        {notificationsSupported && (
+          <div className="space-y-3">
+            <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wide">Recordatorios</h2>
+
+            <button
+              onClick={handleToggleNotifications}
+              disabled={requestingPermission || notificationPermission === 'denied'}
+              className="w-full bg-background-card rounded-xl p-4 flex items-center justify-between hover:bg-background-card/80 transition-colors disabled:opacity-50"
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                  notificationsEnabled ? 'bg-primary/20' : 'bg-gray-700'
+                }`}>
+                  {notificationsEnabled ? (
+                    <Bell className="w-5 h-5 text-primary" />
+                  ) : (
+                    <BellOff className="w-5 h-5 text-gray-400" />
+                  )}
+                </div>
+                <div className="text-left">
+                  <p className="text-white font-medium">Recordatorio diario</p>
+                  <p className="text-gray-500 text-sm">
+                    {notificationPermission === 'denied'
+                      ? 'Bloqueado en tu navegador'
+                      : notificationsEnabled
+                        ? 'Te recordamos a las 9pm'
+                        : 'Activa para no olvidar registrar'
+                    }
+                  </p>
+                </div>
+              </div>
+              <div className={`w-12 h-7 rounded-full p-1 transition-colors ${
+                notificationsEnabled ? 'bg-primary' : 'bg-gray-600'
+              }`}>
+                <div className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                  notificationsEnabled ? 'translate-x-5' : 'translate-x-0'
+                }`} />
+              </div>
+            </button>
+
+            {notificationPermission === 'denied' && (
+              <p className="text-semaforo-amarillo text-xs px-2">
+                ⚠️ Las notificaciones están bloqueadas. Ve a la configuración de tu navegador para activarlas.
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Suggestions section */}
         <div className="space-y-3">
           <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wide">Ayúdanos a mejorar</h2>

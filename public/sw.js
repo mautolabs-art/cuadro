@@ -1,4 +1,4 @@
-const CACHE_NAME = 'finanzas-pwa-v1';
+const CACHE_NAME = 'cuadro-pwa-v2';
 const urlsToCache = [
   '/',
   '/manifest.json',
@@ -40,22 +40,84 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // Clone the response
         const responseClone = response.clone();
-
-        // Open cache and store response
         caches.open(CACHE_NAME)
           .then((cache) => {
             if (event.request.method === 'GET') {
               cache.put(event.request, responseClone);
             }
           });
-
         return response;
       })
       .catch(() => {
-        // If network fails, try cache
         return caches.match(event.request);
       })
   );
 });
+
+// Handle notification click
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  // Open the app when notification is clicked
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clientList) => {
+        // If app is already open, focus it
+        for (const client of clientList) {
+          if (client.url.includes(self.location.origin) && 'focus' in client) {
+            return client.focus();
+          }
+        }
+        // Otherwise, open a new window
+        if (clients.openWindow) {
+          return clients.openWindow('/');
+        }
+      })
+  );
+});
+
+// Handle push notifications (for future backend integration)
+self.addEventListener('push', (event) => {
+  const options = {
+    body: '¿En qué gastaste hoy? Registra tus gastos para no perder el control 💰',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    vibrate: [100, 50, 100],
+    tag: 'cuadro-reminder',
+    renotify: true,
+    actions: [
+      { action: 'open', title: 'Abrir Cuadro' }
+    ]
+  };
+
+  event.waitUntil(
+    self.registration.showNotification('Cuadro - Recordatorio', options)
+  );
+});
+
+// Periodic background sync (for browsers that support it)
+self.addEventListener('periodicsync', (event) => {
+  if (event.tag === 'daily-reminder') {
+    event.waitUntil(showDailyReminder());
+  }
+});
+
+async function showDailyReminder() {
+  const now = new Date();
+  const hour = now.getHours();
+
+  // Only show between 9pm and 10pm
+  if (hour === 21) {
+    const options = {
+      body: '¿En qué gastaste hoy? Registra tus gastos para no perder el control 💰',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      vibrate: [100, 50, 100],
+      tag: 'cuadro-daily-reminder',
+      renotify: false
+    };
+
+    await self.registration.showNotification('Cuadro - Recordatorio diario', options);
+  }
+}

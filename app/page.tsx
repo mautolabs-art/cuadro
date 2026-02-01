@@ -9,6 +9,7 @@ import ChatInterface from '@/components/chat/ChatInterface'
 import BottomNavigation from '@/components/navigation/BottomNavigation'
 import SettingsPage from '@/components/settings/SettingsPage'
 import { db } from '@/lib/supabase'
+import { initializeNotifications } from '@/lib/notifications'
 
 interface FixedExpense {
   id: string
@@ -215,6 +216,9 @@ export default function Home() {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(console.error)
     }
+
+    // Initialize notifications if enabled
+    initializeNotifications()
   }
 
   // Save to localStorage when userData changes
@@ -730,16 +734,22 @@ export default function Home() {
   // Categorize expense
   const categorizeExpense = (description: string): string => {
     const lower = description.toLowerCase()
-    if (lower.includes('almuerzo') || lower.includes('comida') || lower.includes('restaurante') || lower.includes('café') || lower.includes('tintico') || lower.includes('desayuno') || lower.includes('cena')) {
-      return 'Alimentación'
+    // Comida - incluye restaurantes, snacks, bebidas
+    if (lower.includes('almuerzo') || lower.includes('comida') || lower.includes('restaurante') ||
+        lower.includes('café') || lower.includes('tintico') || lower.includes('desayuno') ||
+        lower.includes('cena') || lower.includes('empanada') || lower.includes('arepa') ||
+        lower.includes('jugo') || lower.includes('snack') || lower.includes('postre') ||
+        lower.includes('helado') || lower.includes('pan') || lower.includes('sándwich') ||
+        lower.includes('hamburguesa') || lower.includes('pizza') || lower.includes('pollo')) {
+      return 'Comida'
     }
     if (lower.includes('uber') || lower.includes('taxi') || lower.includes('bus') || lower.includes('transporte') || lower.includes('gasolina') || lower.includes('parqueadero')) {
       return 'Transporte'
     }
-    if (lower.includes('mercado') || lower.includes('supermercado') || lower.includes('exito') || lower.includes('d1') || lower.includes('ara')) {
+    if (lower.includes('mercado') || lower.includes('supermercado') || lower.includes('exito') || lower.includes('d1') || lower.includes('ara') || lower.includes('jumbo') || lower.includes('carulla')) {
       return 'Mercado'
     }
-    if (lower.includes('cerveza') || lower.includes('trago') || lower.includes('rumba') || lower.includes('bar')) {
+    if (lower.includes('cerveza') || lower.includes('trago') || lower.includes('rumba') || lower.includes('bar') || lower.includes('discoteca') || lower.includes('fiesta')) {
       return 'Rumba'
     }
     return 'Otros'
